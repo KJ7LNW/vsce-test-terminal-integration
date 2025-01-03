@@ -94,10 +94,10 @@ export class TerminalHandler {
                         }
 
                         const countSummary = 
-                            'OSC ] 633;D\n' +
+                            'When searching for `OSC ] 633;D`:\n' +
                             `    found:     ${this.stats.bothCount}\n` +
                             `    not found: ${this.stats.neitherCount}\n` +
-                            `    neither:   ${this.stats.pattern2OnlyCount}\n` +
+                            // `    neither:   ${this.stats.pattern2OnlyCount}\n` +
                             `(Run ${this.stats.runCount})\n` +
                             '\n' +
                             '\n' +
