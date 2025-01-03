@@ -1,0 +1,66 @@
+{
+  "name": "vsce-test-plugin",
+  "displayName": "Terminal Command Runner",
+  "description": "Run commands and display terminal output",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.76.0"
+  },
+  "enabledApiProposals": [
+    "terminalDataWriteEvent"
+  ],
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": ["onStartupFinished"],
+  "capabilities": {
+    "terminalShellIntegration": true
+  },
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "vsce-test-plugin.openCommandRunner",
+        "title": "Open Terminal Command Runner"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "terminal-runner",
+          "title": "Terminal Runner",
+          "icon": "resources/terminal.svg"
+        }
+      ]
+    },
+    "views": {
+      "terminal-runner": [
+        {
+          "id": "terminalCommands",
+          "name": "Terminal Commands",
+          "type": "webview"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "extensionKind": ["workspace", "ui"],
+  "extensionDependencies": [],
+  "extensionPack": [],
+  "extensionPoints": [],
+  "devDependencies": {
+    "@types/vscode": "^1.76.0",
+    "@types/node": "18.x",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3"
+  }
+}
