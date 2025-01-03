@@ -1,5 +1,5 @@
 {
-  "name": "vsce-test-plugin",
+  "name": "vsce-test-terminal-integration",
   "displayName": "Terminal Command Runner",
   "description": "Run commands and display terminal output",
   "version": "0.0.1",
@@ -20,7 +20,7 @@
   "contributes": {
     "commands": [
       {
-        "command": "vsce-test-plugin.openCommandRunner",
+        "command": "vsce-test-terminal-integration.openCommandRunner",
         "title": "Open Terminal Command Runner"
       }
     ],
