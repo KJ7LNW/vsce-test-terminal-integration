@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terminal Command Runner</title>
+</head>
+<body>
+    <div class="instructions">
+        Press "Run Command" repeatedly and quickly to watch the counts change.
+        If there is no bug, only the "found" count should increment.
+    </div>
+    <div class="input-label">Command to run (default: "echo a"):</div>
+    <input type="text" id="command-input" placeholder="Enter command...">
+    <div class="button-container">
+        <button id="run-button">Run Command</button>
+        <button id="reset-button">Reset Counts</button>
+    </div>
+    <div class="output-container">
+        <div class="output-label">Command Output:</div>
+        <div id="output"></div>
+        <div class="output-label">Pattern Match Statistics:</div>
+        <div id="debug-output"></div>
+    </div>
+
+    <script>
+        const vscode = acquireVsCodeApi();
+        const commandInput = document.getElementById('command-input');
+        const runButton = document.getElementById('run-button');
+        const resetButton = document.getElementById('reset-button');
+        const output = document.getElementById('output');
+        const debugOutput = document.getElementById('debug-output');
+
+        // Set default command
+        commandInput.value = 'echo a';
+        
+        runButton.addEventListener('click', () => {
+            const command = commandInput.value.trim() || 'echo a';
+            output.textContent = ''; // Clear previous output
+            debugOutput.textContent = ''; // Clear previous debug output
+            vscode.postMessage({
+                command: 'runCommand',
+                text: command
+            });
+        });
+
+        // Handle messages from the extension
+        window.addEventListener('message', event => {
+            const message = event.data;
+            switch (message.type) {
+                case 'output':
+                    output.textContent += message.text;
+                    output.scrollTop = output.scrollHeight;
+                    break;
+                case 'debug':
+                    debugOutput.textContent += message.text + '\n';
+                    debugOutput.scrollTop = debugOutput.scrollHeight;
+                    break;
+            }
+        });
+
+        // Handle Enter key in input
+        commandInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                runButton.click();
+            }
+        });
+
+        // Handle reset button
+        resetButton.addEventListener('click', () => {
+            vscode.postMessage({
+                command: 'resetCounts'
+            });
+        });
+    </script>
+</body>
+</html>

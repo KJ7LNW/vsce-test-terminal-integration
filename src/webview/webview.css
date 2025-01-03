@@ -1,0 +1,75 @@
+body {
+    padding: 20px;
+    color: var(--vscode-foreground);
+    background-color: var(--vscode-editor-background);
+}
+
+.instructions {
+    margin-bottom: 20px;
+    padding: 10px;
+    background-color: var(--vscode-textBlockQuote-background);
+    border-left: 4px solid var(--vscode-textBlockQuote-border);
+    font-style: italic;
+    line-height: 1.4;
+}
+
+.output-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.output-label, .input-label {
+    font-weight: bold;
+    margin-top: 10px;
+    margin-bottom: 5px;
+}
+
+#command-input {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 10px;
+    background-color: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+}
+
+.button-container {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+button {
+    padding: 8px 16px;
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: none;
+    cursor: pointer;
+}
+
+#output {
+    margin-top: 20px;
+    padding: 10px;
+    background-color: var(--vscode-terminal-background);
+    color: var(--vscode-terminal-foreground);
+    font-family: monospace;
+    white-space: pre-wrap;
+    min-height: 200px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+#debug-output {
+    margin-top: 20px;
+    padding: 10px;
+    background-color: var(--vscode-terminal-background);
+    color: var(--vscode-terminal-foreground);
+    font-family: 'Courier New', monospace;
+    white-space: pre;
+    min-height: 200px;
+    max-height: 400px;
+    overflow-y: auto;
+    tab-size: 4;
+    -moz-tab-size: 4;
+}
