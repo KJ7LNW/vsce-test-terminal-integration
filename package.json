@@ -1,7 +1,7 @@
 {
   "name": "vsce-test-terminal-integration",
   "displayName": "Terminal Command Runner",
-  "description": "Run commands and display terminal output",
+  "description": "Test VSCode terminal shell integration sequence race condition between parsing and AsyncIterable consumers",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.76.0"
