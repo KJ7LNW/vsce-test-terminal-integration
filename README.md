@@ -29,6 +29,33 @@ The barrier is used to:
 
 The barrier is critical for features that need to process command output, like task execution and command tracking.
 
+## Empirical Evidence
+
+Testing with a dedicated test harness shows the race condition occurs frequently in practice. The test works by:
+
+1. Setting up an AsyncIterable consumer that listens for terminal data via onData event
+2. Setting up a barrier release listener on the command detection capability
+3. Running a command that will emit the sequence
+4. When the barrier releases:
+   - Check if the consumer has seen the sequence in its data buffer
+   - If already seen, record as "found" - GOOD: data arrived before barrier (expected behavior)
+   - If not seen, record as "not found" - BUG: race condition occurred
+5. Using a timeout to detect test failures ("neither" case)
+
+Results from 15 test runs:
+```
+OSC ] 633;D
+    found:     3     // GOOD: Consumer saw sequence before barrier released (expected behavior)
+    not found: 12    // BUG: Barrier released before consumer saw sequence (race condition)
+    neither:   1     // Test error or timeout
+(Run 15)
+```
+
+This data shows:
+- Only 20% of runs had the correct behavior (found case)
+- 80% of runs exhibited the race condition (not found case)
+- The high rate of "not found" cases demonstrates this is a real race condition affecting most command executions
+
 ## Data Flow
 
 ### 1. Process Data Arrival
@@ -94,59 +121,7 @@ The key issue is that steps 3-4 happen before step 5-6. This means:
 - But consumers don't receive the data until step 6
 - There is no guarantee consumers will see the sequence data before the barrier releases
 
-## Impact
-
-AsyncIterable consumers that rely on seeing the sequence before the barrier releases may miss the data, since the barrier can be released while the write is still pending.
-
-## Empirical Evidence
-
-Testing with a dedicated test harness shows the race condition occurs frequently in practice. The test works by:
-
-1. Setting up an AsyncIterable consumer that listens for terminal data via onData event
-2. Setting up a barrier release listener on the command detection capability
-3. Running a command that will emit the sequence
-4. When the barrier releases:
-   - Check if the consumer has seen the sequence in its data buffer
-   - If not seen, record as "not found" - the race condition occurred
-   - If already seen, record as "found" - data arrived before barrier
-5. Using a timeout to detect test failures ("neither" case)
-
-This methodology directly measures whether AsyncIterable consumers can reliably see the sequence before the barrier releases, which is the core assumption being tested.
-
-Results from 15 test runs:
-```
-OSC ] 633;D
-    found:     3     // Consumer saw sequence before barrier released
-    not found: 12    // Barrier released before consumer saw sequence
-    neither:   1     // Test error or timeout
-(Run 15)
-```
-
-This data shows:
-- Only 3 times (20%) did the consumer see the sequence before barrier release
-- 12 times (80%) the barrier released before the consumer saw the sequence
-- 1 time neither event occurred as expected
-
-The high rate of "not found" cases (80%) demonstrates this is a real race condition that affects the majority of command executions. The sequence is being processed and the barrier released before the write callback can deliver the data to AsyncIterable consumers.
-
-This matches the theoretical analysis of the event sequence:
-1. Data write starts
-2. Parser processes sequence immediately
-3. Barrier releases
-4. Write callback completes later
-5. Consumer finally receives data
-
-The test results empirically confirm that step 3 usually happens before step 5, breaking the assumption that consumers will see the sequence before the barrier releases.
-
-## Verification
-
-This can be verified by:
-
-1. Adding logging to the write callback in TerminalInstance._writeProcessData
-2. Adding logging to the command finished handler in ShellIntegrationAddon
-3. Observing that the command finished handler logs appear before write callback logs
-
-This confirms the sequence is parsed and handled before the write completes and reaches consumers.
+The "found" case (correct behavior) only occurs when the write callback happens to complete before the barrier releases, which is not guaranteed by the current implementation.
 
 ## Potential Solutions
 
