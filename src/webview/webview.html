@@ -61,11 +61,11 @@
             switch (message.type) {
                 case 'output':
                     output.textContent += message.text;
-                    output.scrollTop = output.scrollHeight;
+                    output.scrollTop = 0;
                     break;
                 case 'debug':
-                    debugOutput.textContent += message.text + '\n';
-                    debugOutput.scrollTop = debugOutput.scrollHeight;
+                    debugOutput.textContent += message.text;
+                    debugOutput.scrollTop = 0;
                     break;
             }
         });

@@ -9,6 +9,11 @@ export interface TerminalStats {
     noMatchExamples: string[];  // Store all no-match examples
     total633DCount: number;  // Count of all \x1b\]633;D occurrences
     shellIntegrationWarnings: number;  // Count of shell integration unavailable warnings
+    regexTimes: number[];  // Array of regex match execution times in ms
+    indexTimes: number[];  // Array of string index match execution times in ms
+    avgRegexTime: number;  // Average regex match time in ms
+    avgIndexTime: number;  // Average string index match time in ms
+    matchMismatches: string[];  // Store any mismatches between regex and string index matches
 }
 
 export interface CommandOptions {
@@ -24,7 +29,12 @@ export class TerminalHandler {
         lastMatchSources: ['', '', ''],  // Only 3 patterns need sources
         noMatchExamples: [],  // Array to collect all no-match examples
         total633DCount: 0,
-        shellIntegrationWarnings: 0
+        shellIntegrationWarnings: 0,
+        regexTimes: [],
+        indexTimes: [],
+        avgRegexTime: 0,
+        avgIndexTime: 0,
+        matchMismatches: []
     };
 
     private terminal: vscode.Terminal | null = null;
@@ -41,8 +51,47 @@ export class TerminalHandler {
             lastMatchSources: ['', '', ''],
             noMatchExamples: [],
             total633DCount: 0,
-            shellIntegrationWarnings: 0
+            shellIntegrationWarnings: 0,
+            regexTimes: [],
+            indexTimes: [],
+            avgRegexTime: 0,
+            avgIndexTime: 0,
+            matchMismatches: []
         };
+    }
+
+    private benchmarkRegex(data: string, pattern: RegExp): { match: RegExpExecArray | null; time: number } {
+        const start = performance.now();
+        const match = pattern.exec(data);
+        const time = performance.now() - start;
+        return { match, time };
+    }
+
+    private benchmarkStringIndex(data: string, prefix: string, suffix: string | null): { match: string | null; time: number } {
+        const start = performance.now();
+        const startIndex = data.indexOf(prefix);
+        if (startIndex === -1) {
+            const time = performance.now() - start;
+            return { match: null, time };
+        }
+        
+        const contentStart = startIndex + prefix.length;
+        let match: string | null;
+        
+        if (suffix === null) {
+            // When suffix is null, just take everything after the prefix
+            match = data.slice(contentStart);
+        } else {
+            const endIndex = data.indexOf(suffix, contentStart);
+            if (endIndex === -1) {
+                const time = performance.now() - start;
+                return { match: null, time };
+            }
+            match = data.slice(contentStart, endIndex);
+        }
+        
+        const time = performance.now() - start;
+        return { match, time };
     }
 
     private async waitForShellIntegration(terminal: vscode.Terminal): Promise<void> {
@@ -106,14 +155,65 @@ export class TerminalHandler {
                         let matchSource = 0;
 
                         // Pattern 1: Command completed notification (VTE)
-                        match = data.match(/\x1b\]633;C\x07(.*?)\x1b\]777;notify;Command completed/s)?.[1];
+                        const pattern1 = /\x1b\]633;C\x07(.*?)\x1b\]777;notify;Command completed/s;
+                        
+                        // Benchmark both approaches for Pattern 1
+                        const regexResult1 = this.benchmarkRegex(data, pattern1);
+                        const indexResult1 = this.benchmarkStringIndex(
+                            data,
+                            '\x1b]633;C\x07',
+                            '\x1b]777;notify;Command completed'
+                        );
+                        
+                        // Validate matches are identical
+                        const regexMatch1 = regexResult1.match?.[1];
+                        const indexMatch1 = indexResult1.match;
+                        if (regexMatch1 !== null && indexMatch1 !== null && regexMatch1 !== indexMatch1) {
+                            this.stats.matchMismatches.push(
+                                `Pattern 1 mismatch:\n` +
+                                `  Regex: ${regexMatch1}\n` +
+                                `  Index: ${indexMatch1}`
+                            );
+                        }
+                        
+                        this.stats.regexTimes.push(regexResult1.time);
+                        this.stats.indexTimes.push(indexResult1.time);
+                        
+                        // Update averages
+                        this.stats.avgRegexTime = this.stats.regexTimes.reduce((a, b) => a + b, 0) / this.stats.regexTimes.length;
+                        this.stats.avgIndexTime = this.stats.indexTimes.reduce((a, b) => a + b, 0) / this.stats.indexTimes.length;
+
+                        match = regexMatch1;
                         if (match) {
                             matchSource = 1;
                         }
                         
                         // Pattern 2: Basic command completion (VSCE)
                         if (!match) {
-                            match = data.match(/\x1b\]633;C\x07(.*?)\x1b\]633;D/s)?.[1];
+                            const pattern2 = /\x1b\]633;C\x07(.*?)\x1b\]633;D/s;
+                            
+                            const regexResult2 = this.benchmarkRegex(data, pattern2);
+                            const indexResult2 = this.benchmarkStringIndex(
+                                data,
+                                '\x1b]633;C\x07',
+                                '\x1b]633;D'
+                            );
+                            
+                            // Validate matches are identical
+                            const regexMatch2 = regexResult2.match?.[1];
+                            const indexMatch2 = indexResult2.match;
+                            if (regexMatch2 !== null && indexMatch2 !== null && regexMatch2 !== indexMatch2) {
+                                this.stats.matchMismatches.push(
+                                    `Pattern 2 mismatch:\n` +
+                                    `  Regex: ${regexMatch2}\n` +
+                                    `  Index: ${indexMatch2}`
+                                );
+                            }
+                            
+                            this.stats.regexTimes.push(regexResult2.time);
+                            this.stats.indexTimes.push(indexResult2.time);
+                            
+                            match = regexMatch2;
                             if (match) {
                                 matchSource = 2;
                             }
@@ -121,7 +221,30 @@ export class TerminalHandler {
                         
                         // Pattern 3: Fallback pattern
                         if (!match) {
-                            match = data.match(/\x1b\]633;C\x07(.*)$/s)?.[1];
+                            const pattern3 = /\x1b\]633;C\x07(.*)$/s;
+                            
+                            const regexResult3 = this.benchmarkRegex(data, pattern3);
+                            const indexResult3 = this.benchmarkStringIndex(
+                                data,
+                                '\x1b]633;C\x07',
+                                null // null means match to end
+                            );
+                            
+                            // Validate matches are identical
+                            const regexMatch3 = regexResult3.match?.[1];
+                            const indexMatch3 = indexResult3.match;
+                            if (regexMatch3 !== null && indexMatch3 !== null && regexMatch3 !== indexMatch3) {
+                                this.stats.matchMismatches.push(
+                                    `Pattern 3 mismatch:\n` +
+                                    `  Regex: ${regexMatch3}\n` +
+                                    `  Index: ${indexMatch3}`
+                                );
+                            }
+                            
+                            this.stats.regexTimes.push(regexResult3.time);
+                            this.stats.indexTimes.push(indexResult3.time);
+                            
+                            match = regexMatch3;
                             if (match) {
                                 matchSource = 3;
                             }
@@ -153,12 +276,17 @@ export class TerminalHandler {
 
                     const countSummary = 
                         'Pattern Match Statistics:\n' +
+                        (this.stats.matchMismatches.length > 0 ?
+                            'Match Validation Issues:\n' +
+                            this.stats.matchMismatches.map(msg => `  ${msg}`).join('\n') + '\n\n' : '') +
                         `    Pattern 1 (VTE):        ${this.stats.patternCounts[0]}\n` +
                         `    Pattern 2 (VSCE):       ${this.stats.patternCounts[1]}\n` +
                         `    Pattern 3 (Fallback):   ${this.stats.patternCounts[2]}\n` +
                         `    No matches:             ${this.stats.patternCounts[3]}\n` +
                         `    Total 633;D count:      ${this.stats.total633DCount}\n` +
                         `    shIntegration warnings: ${this.stats.shellIntegrationWarnings}\n` +
+                        `    Avg Regex Time:         ${this.stats.avgRegexTime.toFixed(3)}ms\n` +
+                        `    Avg String Index Time:  ${this.stats.avgIndexTime.toFixed(3)}ms\n` +
                         `(Run ${this.stats.runCount})\n` +
                         '\n' +
                         'Example matches:\n' +
