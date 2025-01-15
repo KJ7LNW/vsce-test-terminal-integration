@@ -8,10 +8,12 @@ export interface TerminalStats {
     lastMatchSources: string[];
     noMatchExamples: string[];  // Store all no-match examples
     total633DCount: number;  // Count of all \x1b\]633;D occurrences
+    shellIntegrationWarnings: number;  // Count of shell integration unavailable warnings
 }
 
 export interface CommandOptions {
     autoCloseTerminal: boolean;
+    useShellIntegration: boolean;
 }
 
 export class TerminalHandler {
@@ -21,7 +23,8 @@ export class TerminalHandler {
         lastMatches: ['', '', ''],  // Only 3 patterns need last matches
         lastMatchSources: ['', '', ''],  // Only 3 patterns need sources
         noMatchExamples: [],  // Array to collect all no-match examples
-        total633DCount: 0
+        total633DCount: 0,
+        shellIntegrationWarnings: 0
     };
 
     private terminal: vscode.Terminal | null = null;
@@ -37,7 +40,8 @@ export class TerminalHandler {
             lastMatches: ['', '', ''],
             lastMatchSources: ['', '', ''],
             noMatchExamples: [],
-            total633DCount: 0
+            total633DCount: 0,
+            shellIntegrationWarnings: 0
         };
     }
 
@@ -154,6 +158,7 @@ export class TerminalHandler {
                         `    Pattern 3 (Fallback):   ${this.stats.patternCounts[2]}\n` +
                         `    No matches:             ${this.stats.patternCounts[3]}\n` +
                         `    Total 633;D count:      ${this.stats.total633DCount}\n` +
+                        `    shIntegration warnings: ${this.stats.shellIntegrationWarnings}\n` +
                         `(Run ${this.stats.runCount})\n` +
                         '\n' +
                         'Example matches:\n' +
@@ -208,8 +213,14 @@ export class TerminalHandler {
         try {
             await this.waitForShellIntegration(this.terminal!);
             const shellIntegration = (this.terminal as any).shellIntegration;
-            if (shellIntegration?.executeCommand) {
-                shellIntegration.executeCommand(command);
+            if (options.useShellIntegration) {
+                if (!shellIntegration?.executeCommand) {
+                    this.onOutput('Warning: Shell integration not available, falling back to sendText\n\n');
+                    this.stats.shellIntegrationWarnings++;
+                    this.terminal?.sendText(command);
+                } else {
+                    shellIntegration.executeCommand(command);
+                }
             } else {
                 this.terminal?.sendText(command);
             }
