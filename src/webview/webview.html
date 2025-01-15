@@ -13,12 +13,15 @@
     <div class="input-label">Command to run (default: "echo a"):</div>
     <input type="text" id="command-input" placeholder="Enter command...">
     <div class="checkbox-container">
-        <input type="checkbox" id="auto-close" checked>
+        <input type="checkbox" id="auto-close">
         <label for="auto-close">Auto-close terminal after execution</label>
+        <br>
+        <input type="checkbox" id="use-shell-integration" checked>
+        <label for="use-shell-integration">Use shell integration for command execution</label>
     </div>
     <div class="button-container">
         <button id="run-button">Run Command</button>
-        <button id="reset-button">Reset Counts</button>
+        <button id="reset-button">Reset Stats</button>
     </div>
     <div class="output-container">
         <div class="output-label">Command Output:</div>
@@ -41,12 +44,14 @@
         runButton.addEventListener('click', () => {
             const command = commandInput.value.trim() || 'echo a';
             const autoClose = document.getElementById('auto-close').checked;
+            const useShellIntegration = document.getElementById('use-shell-integration').checked;
             output.textContent = ''; // Clear previous output
             debugOutput.textContent = ''; // Clear previous debug output
             vscode.postMessage({
                 command: 'runCommand',
                 text: command,
-                autoCloseTerminal: autoClose
+                autoCloseTerminal: autoClose,
+                useShellIntegration: useShellIntegration
             });
         });
 

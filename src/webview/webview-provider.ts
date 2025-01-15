@@ -39,7 +39,8 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
             switch (message.command) {
                 case 'runCommand':
                     await this.terminalHandler.executeCommand(message.text, {
-                        autoCloseTerminal: message.autoCloseTerminal
+                        autoCloseTerminal: message.autoCloseTerminal,
+                        useShellIntegration: message.useShellIntegration
                     });
                     break;
                 case 'resetCounts':
