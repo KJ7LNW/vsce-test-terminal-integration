@@ -2,26 +2,26 @@ import * as vscode from 'vscode';
 import { inspect } from 'util';
 
 export interface TerminalStats {
-    pattern2OnlyCount: number;
-    neitherCount: number;
-    bothCount: number;
+    pattern1Count: number;
+    pattern2Count: number;
+    pattern3Count: number;
+    noMatchCount: number;
     runCount: number;
-    lastBothMatch: string;
-    lastBothSource: string;
-    lastPattern2OnlyMatch: string;
-    lastPattern2OnlySource: string;
+    lastMatch: string;
+    lastMatchSource: string;
+    lastMatchPattern: number;
 }
 
 export class TerminalHandler {
     private stats: TerminalStats = {
-        pattern2OnlyCount: 0,
-        neitherCount: 0,
-        bothCount: 0,
+        pattern1Count: 0,
+        pattern2Count: 0,
+        pattern3Count: 0,
+        noMatchCount: 0,
         runCount: 0,
-        lastBothMatch: '',
-        lastBothSource: '',
-        lastPattern2OnlyMatch: '',
-        lastPattern2OnlySource: ''
+        lastMatch: '',
+        lastMatchSource: '',
+        lastMatchPattern: 0
     };
 
     constructor(private readonly onOutput: (text: string) => void,
@@ -29,14 +29,14 @@ export class TerminalHandler {
 
     public resetStats(): void {
         this.stats = {
-            pattern2OnlyCount: 0,
-            neitherCount: 0,
-            bothCount: 0,
+            pattern1Count: 0,
+            pattern2Count: 0,
+            pattern3Count: 0,
+            noMatchCount: 0,
             runCount: 0,
-            lastBothMatch: '',
-            lastBothSource: '',
-            lastPattern2OnlyMatch: '',
-            lastPattern2OnlySource: ''
+            lastMatch: '',
+            lastMatchSource: '',
+            lastMatchPattern: 0
         };
     }
 
@@ -74,51 +74,88 @@ export class TerminalHandler {
             if (e.terminal === terminal) {
                 try {
                     const stream = e.execution.read();
+                    let outputBuffer = '';
+                    let lastMatch = null;
+                    let lastMatchSource = '';
+                    let lastMatchPattern = 0;
+
                     for await (const data of stream) {
-                        let match1 = data.match(/\x1b\]633;C\x07(.*?)\x1b\]633;D(?:;(\d+))?/s)?.[1];
-                        let match2 = data.match(/.*\x1b\]633;C\x07(.*)$/s)?.[1];
+                        // Try patterns in sequence and short circuit on first match
+                        let match = null;
+                        let matchSource = 0;
 
-                        this.onOutput(inspect(data));
-
-                        // Update pattern match counts and store matches with source
-                        if (!match1 && match2) {
-                            this.stats.neitherCount++;  // "not found" means only pattern2 matched
-                            this.stats.lastPattern2OnlyMatch = match2;
-                            this.stats.lastPattern2OnlySource = data;
-                        } else if (!match1 && !match2) {
-                            this.stats.pattern2OnlyCount++;  // no matches
-                        } else if (match1 && match2) {
-                            this.stats.bothCount++;
-                            this.stats.lastBothMatch = match1;
-                            this.stats.lastBothSource = data;
+                        // Pattern 1: Command completed notification (VTE)
+                        match = data.match(/\x1b\]633;C\x07(.*?)\x1b\]777;notify;Command completed/s)?.[1];
+                        if (match) {
+                            matchSource = 1;
+                        }
+                        
+                        // Pattern 2: Basic command completion (VSCE)
+                        if (!match) {
+                            match = data.match(/\x1b\]633;C\x07(.*?)\x1b\]633;D/s)?.[1];
+                            if (match) {
+                                matchSource = 2;
+                            }
+                        }
+                        
+                        // Pattern 3: Fallback pattern
+                        if (!match) {
+                            match = data.match(/\x1b\]633;C\x07(.*)$/s)?.[1];
+                            if (match) {
+                                matchSource = 3;
+                            }
                         }
 
-                        const countSummary = 
-                            'When searching for `OSC ] 633;D`:\n' +
-                            `    found:     ${this.stats.bothCount}\n` +
-                            `    not found: ${this.stats.neitherCount}\n` +
-                            // `    neither:   ${this.stats.pattern2OnlyCount}\n` +
-                            `(Run ${this.stats.runCount})\n` +
-                            '\n' +
-                            '\n' +
-                            (this.stats.lastBothMatch ? 
-                                `Last 633;D found match:\n` +
-                                `  Match: \n  ${inspect(this.stats.lastBothMatch)}\n\n` +
-                                `  From:  \n  ${inspect(this.stats.lastBothSource)}\n\n` : '') +
-                            (this.stats.lastPattern2OnlyMatch ? 
-                                `Last 633;D not found match:\n` +
-                                `  Match: \n  ${inspect(this.stats.lastPattern2OnlyMatch)}\n\n` +
-                                `  From:  \n  ${inspect(this.stats.lastPattern2OnlySource)}` : '');
-
-                        this.onDebug(countSummary);
-
-                        // Schedule next run if we haven't reached max runs
-                        if (this.stats.runCount < 100) {
-                            setTimeout(() => {
-                                this.stats.runCount++;
-                                terminal.sendText(command);
-                            }, 100);
+                        // Buffer the output
+                        if (match) {
+                            lastMatch = match;
+                            lastMatchSource = data;
+                            lastMatchPattern = matchSource;
+                            outputBuffer = `Match found (Pattern ${matchSource}):\n${inspect(match)}\n\nFrom:\n${inspect(data)}`;
+                        } else {
+                            outputBuffer = `No match found in:\n${inspect(data)}`;
                         }
+
+                        // Update stats
+                        if (match) {
+                            switch (matchSource) {
+                                case 1: this.stats.pattern1Count++; break;
+                                case 2: this.stats.pattern2Count++; break;
+                                case 3: this.stats.pattern3Count++; break;
+                            }
+                            this.stats.lastMatch = match;
+                            this.stats.lastMatchSource = data;
+                            this.stats.lastMatchPattern = matchSource;
+                        } else {
+                            this.stats.noMatchCount++;
+                        }
+                    }
+
+                    // Write final output and stats in one shot
+                    this.onOutput(outputBuffer);
+
+                    const countSummary = 
+                        'Pattern Match Statistics:\n' +
+                        `    Pattern 1 (VTE):        ${this.stats.pattern1Count}\n` +
+                        `    Pattern 2 (VSCE):       ${this.stats.pattern2Count}\n` +
+                        `    Pattern 3 (Fallback):   ${this.stats.pattern3Count}\n` +
+                        `    No matches:             ${this.stats.noMatchCount}\n` +
+                        `(Run ${this.stats.runCount})\n` +
+                        '\n' +
+                        '\n' +
+                        (lastMatch ? 
+                            `Last match (Pattern ${lastMatchPattern}):\n` +
+                            `  Match: \n  ${inspect(lastMatch)}\n\n` +
+                            `  From:  \n  ${inspect(lastMatchSource)}\n` : '');
+
+                    this.onDebug(countSummary);
+
+                    // Schedule next run if we haven't reached max runs
+                    if (this.stats.runCount < 100) {
+                        setTimeout(() => {
+                            this.stats.runCount++;
+                            terminal.sendText(command);
+                        }, 100);
                     }
                 } catch (err) {
                     console.error('Error reading stream:', err);
