@@ -12,6 +12,10 @@
     </div>
     <div class="input-label">Command to run (default: "echo a"):</div>
     <input type="text" id="command-input" placeholder="Enter command...">
+    <div class="checkbox-container">
+        <input type="checkbox" id="auto-close" checked>
+        <label for="auto-close">Auto-close terminal after execution</label>
+    </div>
     <div class="button-container">
         <button id="run-button">Run Command</button>
         <button id="reset-button">Reset Counts</button>
@@ -36,11 +40,13 @@
         
         runButton.addEventListener('click', () => {
             const command = commandInput.value.trim() || 'echo a';
+            const autoClose = document.getElementById('auto-close').checked;
             output.textContent = ''; // Clear previous output
             debugOutput.textContent = ''; // Clear previous debug output
             vscode.postMessage({
                 command: 'runCommand',
-                text: command
+                text: command,
+                autoCloseTerminal: autoClose
             });
         });
 

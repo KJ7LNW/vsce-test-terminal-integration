@@ -10,6 +10,10 @@ export interface TerminalStats {
     total633DCount: number;  // Count of all \x1b\]633;D occurrences
 }
 
+export interface CommandOptions {
+    autoCloseTerminal: boolean;
+}
+
 export class TerminalHandler {
     private stats: TerminalStats = {
         patternCounts: [0, 0, 0, 0],  // VTE, VSCE, Fallback, No Match
@@ -19,6 +23,9 @@ export class TerminalHandler {
         noMatchExamples: [],  // Array to collect all no-match examples
         total633DCount: 0
     };
+
+    private terminal: vscode.Terminal | null = null;
+    private isExecuting = false;
 
     constructor(private readonly onOutput: (text: string) => void,
                 private readonly onDebug: (text: string) => void) {}
@@ -60,12 +67,22 @@ export class TerminalHandler {
         });
     }
 
-    public async executeCommand(command: string): Promise<void> {
-        const terminal = vscode.window.createTerminal('Command Runner');
-        terminal.show();
+    public async executeCommand(command: string, options: CommandOptions): Promise<void> {
+        // Prevent concurrent executions
+        if (this.isExecuting) {
+            this.onOutput('Command execution in progress, please wait...');
+            return;
+        }
+        this.isExecuting = true;
+
+        // Create terminal if it doesn't exist
+        if (!this.terminal) {
+            this.terminal = vscode.window.createTerminal('Command Runner');
+        }
+        this.terminal.show();
 
         const startDisposable = (vscode.window as any).onDidStartTerminalShellExecution?.(async (e: any) => {
-            if (e.terminal === terminal) {
+            if (e.terminal === this.terminal) {
                 try {
                     const stream = e.execution.read();
                     let outputBuffer = '';
@@ -164,8 +181,11 @@ export class TerminalHandler {
                     if (this.stats.runCount < 100) {
                         setTimeout(() => {
                             this.stats.runCount++;
-                            terminal.sendText(command);
+                            this.terminal?.sendText(command);
                         }, 100);
+                    } else if (options.autoCloseTerminal) {
+                        this.terminal?.dispose();
+                        this.terminal = null;
                     }
                 } catch (err) {
                     console.error('Error reading stream:', err);
@@ -174,22 +194,27 @@ export class TerminalHandler {
         });
 
         const endDisposable = (vscode.window as any).onDidEndTerminalShellExecution?.(async (e: any) => {
-            if (e.terminal === terminal) {
+            if (e.terminal === this.terminal) {
                 startDisposable?.dispose();
                 endDisposable?.dispose();
+                this.isExecuting = false;
+                if (options.autoCloseTerminal) {
+                    this.terminal?.dispose();
+                    this.terminal = null;
+                }
             }
         });
 
         try {
-            await this.waitForShellIntegration(terminal);
-            const shellIntegration = (terminal as any).shellIntegration;
+            await this.waitForShellIntegration(this.terminal!);
+            const shellIntegration = (this.terminal as any).shellIntegration;
             if (shellIntegration?.executeCommand) {
                 shellIntegration.executeCommand(command);
             } else {
-                terminal.sendText(command);
+                this.terminal?.sendText(command);
             }
         } catch (err) {
-            terminal.sendText(command);
+            this.terminal?.sendText(command);
         }
     }
 }
