@@ -2,26 +2,22 @@ import * as vscode from 'vscode';
 import { inspect } from 'util';
 
 export interface TerminalStats {
-    pattern1Count: number;
-    pattern2Count: number;
-    pattern3Count: number;
-    noMatchCount: number;
+    patternCounts: number[];
     runCount: number;
-    lastMatch: string;
-    lastMatchSource: string;
-    lastMatchPattern: number;
+    lastMatches: string[];
+    lastMatchSources: string[];
+    noMatchExamples: string[];  // Store all no-match examples
+    total633DCount: number;  // Count of all \x1b\]633;D occurrences
 }
 
 export class TerminalHandler {
     private stats: TerminalStats = {
-        pattern1Count: 0,
-        pattern2Count: 0,
-        pattern3Count: 0,
-        noMatchCount: 0,
+        patternCounts: [0, 0, 0, 0],  // VTE, VSCE, Fallback, No Match
         runCount: 0,
-        lastMatch: '',
-        lastMatchSource: '',
-        lastMatchPattern: 0
+        lastMatches: ['', '', ''],  // Only 3 patterns need last matches
+        lastMatchSources: ['', '', ''],  // Only 3 patterns need sources
+        noMatchExamples: [],  // Array to collect all no-match examples
+        total633DCount: 0
     };
 
     constructor(private readonly onOutput: (text: string) => void,
@@ -29,14 +25,12 @@ export class TerminalHandler {
 
     public resetStats(): void {
         this.stats = {
-            pattern1Count: 0,
-            pattern2Count: 0,
-            pattern3Count: 0,
-            noMatchCount: 0,
+            patternCounts: [0, 0, 0, 0],
             runCount: 0,
-            lastMatch: '',
-            lastMatchSource: '',
-            lastMatchPattern: 0
+            lastMatches: ['', '', ''],
+            lastMatchSources: ['', '', ''],
+            noMatchExamples: [],
+            total633DCount: 0
         };
     }
 
@@ -80,6 +74,12 @@ export class TerminalHandler {
                     let lastMatchPattern = 0;
 
                     for await (const data of stream) {
+                        // Count total occurrences of \x1b\]633;D
+                        const dMatches = data.match(/\x1b\]633;D/gs);
+                        if (dMatches) {
+                            this.stats.total633DCount += dMatches.length;
+                        }
+
                         // Try patterns in sequence and short circuit on first match
                         let match = null;
                         let matchSource = 0;
@@ -118,16 +118,12 @@ export class TerminalHandler {
 
                         // Update stats
                         if (match) {
-                            switch (matchSource) {
-                                case 1: this.stats.pattern1Count++; break;
-                                case 2: this.stats.pattern2Count++; break;
-                                case 3: this.stats.pattern3Count++; break;
-                            }
-                            this.stats.lastMatch = match;
-                            this.stats.lastMatchSource = data;
-                            this.stats.lastMatchPattern = matchSource;
+                            this.stats.patternCounts[matchSource - 1]++;
+                            this.stats.lastMatches[matchSource - 1] = match;
+                            this.stats.lastMatchSources[matchSource - 1] = data;
                         } else {
-                            this.stats.noMatchCount++;
+                            this.stats.patternCounts[3]++;
+                            this.stats.noMatchExamples.push(data);
                         }
                     }
 
@@ -136,17 +132,31 @@ export class TerminalHandler {
 
                     const countSummary = 
                         'Pattern Match Statistics:\n' +
-                        `    Pattern 1 (VTE):        ${this.stats.pattern1Count}\n` +
-                        `    Pattern 2 (VSCE):       ${this.stats.pattern2Count}\n` +
-                        `    Pattern 3 (Fallback):   ${this.stats.pattern3Count}\n` +
-                        `    No matches:             ${this.stats.noMatchCount}\n` +
+                        `    Pattern 1 (VTE):        ${this.stats.patternCounts[0]}\n` +
+                        `    Pattern 2 (VSCE):       ${this.stats.patternCounts[1]}\n` +
+                        `    Pattern 3 (Fallback):   ${this.stats.patternCounts[2]}\n` +
+                        `    No matches:             ${this.stats.patternCounts[3]}\n` +
+                        `    Total 633;D count:      ${this.stats.total633DCount}\n` +
                         `(Run ${this.stats.runCount})\n` +
                         '\n' +
-                        '\n' +
-                        (lastMatch ? 
-                            `Last match (Pattern ${lastMatchPattern}):\n` +
-                            `  Match: \n  ${inspect(lastMatch)}\n\n` +
-                            `  From:  \n  ${inspect(lastMatchSource)}\n` : '');
+                        'Example matches:\n' +
+                        (this.stats.lastMatches[0] ? 
+                            `Pattern 1 (VTE):\n` +
+                            `  Match: \n  ${inspect(this.stats.lastMatches[0])}\n` +
+                            `  From:  \n  ${inspect(this.stats.lastMatchSources[0])}\n\n` : '') +
+                        (this.stats.lastMatches[1] ? 
+                            `Pattern 2 (VSCE):\n` +
+                            `  Match: \n  ${inspect(this.stats.lastMatches[1])}\n` +
+                            `  From:  \n  ${inspect(this.stats.lastMatchSources[1])}\n\n` : '') +
+                        (this.stats.lastMatches[2] ? 
+                            `Pattern 3 (Fallback):\n` +
+                            `  Match: \n  ${inspect(this.stats.lastMatches[2])}\n` +
+                            `  From:  \n  ${inspect(this.stats.lastMatchSources[2])}\n\n` : '') +
+                        (this.stats.noMatchExamples.length > 0 ? 
+                            `No match examples:\n` +
+                            this.stats.noMatchExamples.map((example, i) => 
+                                `  ${i + 1}. ${inspect(example)}`
+                            ).join('\n') + '\n' : '');
 
                     this.onDebug(countSummary);
 
