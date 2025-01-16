@@ -5,8 +5,8 @@ const BENCHMARK_ITERATIONS = 1000;
 
 export interface TerminalStats {
     patternCounts: number[];
-    lastMatches: (string | null)[];
-    lastMatchSources: (string | null)[];
+    lastMatches: (string | undefined)[];
+    lastMatchSources: (string | undefined)[];
     noMatchExamples: string[];  // Store all no-match examples
     total633DCount: number;  // Count of all \x1b\]633;D occurrences
     shellIntegrationWarnings: number;  // Count of shell integration unavailable warnings
@@ -26,11 +26,11 @@ export interface CommandOptions {
 export class TerminalHandler {
     private tryPattern(
         output: string,
+        patternNumber: number,
         pattern: RegExp,
         prefix: string,
-        suffix: string | null,
-        patternNumber: number
-    ): { match: string | null; matchSource: number } {
+        suffix?: string
+    ): { match: string | undefined; matchSource: number } {
         const regexResult = this.benchmarkRegex(output, pattern);
         const indexResult = this.benchmarkStringIndex(output, prefix, suffix);
         
@@ -41,7 +41,7 @@ export class TerminalHandler {
         const indexMatch = indexResult.match;
         
         // Record mismatch if either matched but they disagree
-        if ((regexMatch !== null && regexMatch !== undefined) || indexMatch !== null) {
+        if (regexMatch !== undefined || indexMatch !== undefined) {
             if (regexMatch !== indexMatch) {
                 this.stats.matchMismatches.push(
                     `Pattern ${patternNumber} mismatch:\n` +
@@ -52,8 +52,7 @@ export class TerminalHandler {
         }
 
         // Return match only if both approaches agree
-        if (regexMatch !== null && regexMatch !== undefined && 
-            indexMatch !== null && regexMatch === indexMatch) {
+        if (regexMatch !== undefined && indexMatch !== undefined && regexMatch === indexMatch) {
             
             this.stats.regexTimes.push(regexResult.time);
             this.stats.indexTimes.push(indexResult.time);
@@ -61,13 +60,13 @@ export class TerminalHandler {
             return { match: regexMatch, matchSource: patternNumber };
         }
         
-        return { match: null, matchSource: 0 };
+        return { match: undefined, matchSource: 0 };
     }
 
     private stats: TerminalStats = {
         patternCounts: [0, 0, 0, 0],  // VTE, VSCE, Fallback, No Match
-        lastMatches: [null, null, null],  // Only 3 patterns need last matches
-        lastMatchSources: [null, null, null],  // Only 3 patterns need sources
+        lastMatches: Array(3),  // Only 3 patterns need last matches
+        lastMatchSources: Array(3),  // Only 3 patterns need sources
         noMatchExamples: [],  // Array to collect all no-match examples
         total633DCount: 0,
         shellIntegrationWarnings: 0,
@@ -78,7 +77,7 @@ export class TerminalHandler {
         matchMismatches: []
     };
 
-    private terminal: vscode.Terminal | null = null;
+    private terminal?: vscode.Terminal;
     private isExecuting = false;
     private lastPromptCommand: string = 'sleep 0.1';
     
@@ -88,15 +87,15 @@ export class TerminalHandler {
     public closeTerminal(): void {
         if (this.terminal) {
             this.terminal.dispose();
-            this.terminal = null;
+            this.terminal = undefined;
         }
     }
 
     public resetStats(): void {
         this.stats = {
             patternCounts: [0, 0, 0, 0],
-            lastMatches: [null, null, null],
-            lastMatchSources: [null, null, null],
+            lastMatches: Array(3),
+            lastMatchSources: Array(3),
             noMatchExamples: [],
             total633DCount: 0,
             shellIntegrationWarnings: 0,
@@ -108,7 +107,7 @@ export class TerminalHandler {
         };
     }
 
-    private benchmarkRegex(data: string, pattern: RegExp): { match: RegExpExecArray | null; time: number } {
+    private benchmarkRegex(data: string, pattern: RegExp): { match: RegExpExecArray | undefined; time: number } {
         const start = performance.now();
         let match: RegExpExecArray | null = null;
         
@@ -119,32 +118,36 @@ export class TerminalHandler {
         
         // Convert to microseconds (ms * 1000)
         const time = ((performance.now() - start) / BENCHMARK_ITERATIONS) * 1000;
-        return { match, time };
+        
+        return { 
+            match: match === null ? undefined : match,
+            time 
+        };
     }
 
-    private stringIndexMatch(data: string, prefix: string, suffix: string | null): string | null {
+    private stringIndexMatch(data: string, prefix: string, suffix?: string): string | undefined {
         const startIndex = data.indexOf(prefix);
         if (startIndex === -1) {
-            return null;
+            return undefined;
         }
         
         const contentStart = startIndex + prefix.length;
         
-        if (suffix === null) {
-            // When suffix is null, just take everything after the prefix
+        if (suffix === undefined) {
+            // When suffix is undefined, match to end
             return data.slice(contentStart);
-        } else {
-            const endIndex = data.indexOf(suffix, contentStart);
-            if (endIndex === -1) {
-                return null;
-            }
-            return data.slice(contentStart, endIndex);
         }
+        
+        const endIndex = data.indexOf(suffix, contentStart);
+        if (endIndex === -1) {
+            return undefined;
+        }
+        return data.slice(contentStart, endIndex);
     }
 
-    private benchmarkStringIndex(data: string, prefix: string, suffix: string | null): { match: string | null; time: number } {
+    private benchmarkStringIndex(data: string, prefix: string, suffix?: string): { match: string | undefined; time: number } {
         const start = performance.now();
-        let match: string | null = null;
+        let match: string | undefined;
         
         // Run multiple iterations for more accurate timing
         for (let i = 0; i < BENCHMARK_ITERATIONS; i++) {
@@ -195,7 +198,7 @@ export class TerminalHandler {
         // Handle prompt command changes first
         if (this.terminal && promptCommand !== this.lastPromptCommand) {
             this.terminal.dispose();
-            this.terminal = null;
+            this.terminal = undefined;
         }
 
         // Create new terminal if needed
@@ -218,7 +221,7 @@ export class TerminalHandler {
                 
                 if (e.terminal === this.terminal) {
                     let outputBuffer = '';
-                    let lastMatch = null;
+                    let lastMatch: string | undefined;
                     let lastMatchSource = '';
                     let lastMatchPattern = 0;
 
@@ -234,53 +237,50 @@ export class TerminalHandler {
                     }
 
                     // Try patterns in sequence and short circuit on first match
-                    let match = null;
+                    let match: string | undefined;
                     let matchSource = 0;
 
                     // Pattern 1: Command completed notification (VTE)
                     const result1 = this.tryPattern(
                         output,
-                        
+                        1,
                         // by regex
                         /\x1b\]633;C\x07(.*?)\x1b\]777;notify;Command completed/s,
 
                         // by index 
                         '\x1b]633;C\x07',
-                        '\x1b]777;notify;Command completed',
-                        1
+                        '\x1b]777;notify;Command completed'
                     );
                     match = result1.match;
                     matchSource = result1.matchSource;
 
                     // Pattern 2: Basic command completion (VSCE)
-                    if (match === null) {
+                    if (match === undefined) {
                         const result2 = this.tryPattern(
                             output,
-                            
+                            2,
                             // by regex
                             /\x1b\]633;C\x07(.*?)\x1b\]633;D/s,
 
                             // by index
                             '\x1b]633;C\x07',
-                            '\x1b]633;D',
-                            2
+                            '\x1b]633;D'
                         );
                         match = result2.match;
                         matchSource = result2.matchSource;
                     }
 
                     // Pattern 3: Fallback pattern
-                    if (match === null) {
+                    if (match === undefined) {
                         const result3 = this.tryPattern(
                             output,
-                            
+                            3,
                             // by regex
                             /\x1b\]633;C\x07(.*)$/s,
 
-                            // by index, match to end (ie, null)
+                            // by index, match to end (ie, undefined)
                             '\x1b]633;C\x07',
-                            null,
-                            3
+                            undefined
                         );
                         match = result3.match;
                         matchSource = result3.matchSource;
@@ -291,12 +291,12 @@ export class TerminalHandler {
                     this.stats.avgIndexTime = this.stats.indexTimes.reduce((a, b) => a + b, 0) / this.stats.indexTimes.length;
 
                     // Buffer the output with match info
-                    outputBuffer = match !== null ?
+                    outputBuffer = match !== undefined ?
                         `Match found (Pattern ${matchSource}):\n${inspect(match)}\n\nFrom:\n${inspect(output)}` :
                         `No match found in:\n${inspect(output)}`;
 
                     // Update stats
-                    if (match !== null && typeof match === 'string') {
+                    if (match !== undefined && typeof match === 'string') {
                         this.stats.patternCounts[matchSource - 1]++;
                         this.stats.lastMatches[matchSource - 1] = match;
                         this.stats.lastMatchSources[matchSource - 1] = output;
@@ -323,15 +323,15 @@ export class TerminalHandler {
                         `    Avg String Index Time:  ${this.stats.avgIndexTime.toFixed(3)}µs (${(this.stats.avgRegexTime / this.stats.avgIndexTime).toFixed(1)}x faster)\n` +
                         '\n' +
                         'Example matches:\n' +
-                        (this.stats.lastMatches[0] !== null ? 
+                        (this.stats.lastMatches[0] !== undefined ? 
                             `Pattern 1 (VTE):\n` +
                             `  Match: \n  ${inspect(this.stats.lastMatches[0])}\n\n` +
                             `  From:  \n  ${inspect(this.stats.lastMatchSources[0])}\n\n` : '') +
-                        (this.stats.lastMatches[1] !== null ? 
+                        (this.stats.lastMatches[1] !== undefined ? 
                             `Pattern 2 (VSCE):\n` +
                             `  Match: \n  ${inspect(this.stats.lastMatches[1])}\n\n` +
                             `  From:  \n    ${inspect(this.stats.lastMatchSources[1])}\n\n` : '') +
-                        (this.stats.lastMatches[2] !== null ? 
+                        (this.stats.lastMatches[2] !== undefined ? 
                             `Pattern 3 (Fallback):\n` +
                             `  Match: \n  ${inspect(this.stats.lastMatches[2])}\n\n` +
                             `  From:  \n    ${inspect(this.stats.lastMatchSources[2])}\n\n` : '') +
@@ -345,7 +345,7 @@ export class TerminalHandler {
 
                     if (options.autoCloseTerminal) {
                         this.terminal?.dispose();
-                        this.terminal = null;
+                        this.terminal = undefined;
                     }
                 }
             } catch (err) {
@@ -360,7 +360,7 @@ export class TerminalHandler {
                 this.isExecuting = false;
                 if (options.autoCloseTerminal) {
                     this.terminal?.dispose();
-                    this.terminal = null;
+                        this.terminal = undefined;
                 }
             }
         });
