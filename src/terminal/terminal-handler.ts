@@ -122,29 +122,33 @@ export class TerminalHandler {
         return { match, time };
     }
 
+    private stringIndexMatch(data: string, prefix: string, suffix: string | null): string | null {
+        const startIndex = data.indexOf(prefix);
+        if (startIndex === -1) {
+            return null;
+        }
+        
+        const contentStart = startIndex + prefix.length;
+        
+        if (suffix === null) {
+            // When suffix is null, just take everything after the prefix
+            return data.slice(contentStart);
+        } else {
+            const endIndex = data.indexOf(suffix, contentStart);
+            if (endIndex === -1) {
+                return null;
+            }
+            return data.slice(contentStart, endIndex);
+        }
+    }
+
     private benchmarkStringIndex(data: string, prefix: string, suffix: string | null): { match: string | null; time: number } {
         const start = performance.now();
         let match: string | null = null;
         
         // Run multiple iterations for more accurate timing
         for (let i = 0; i < BENCHMARK_ITERATIONS; i++) {
-            const startIndex = data.indexOf(prefix);
-            if (startIndex === -1) {
-                continue;
-            }
-            
-            const contentStart = startIndex + prefix.length;
-            
-            if (suffix === null) {
-                // When suffix is null, just take everything after the prefix
-                match = data.slice(contentStart);
-            } else {
-                const endIndex = data.indexOf(suffix, contentStart);
-                if (endIndex === -1) {
-                    continue;
-                }
-                match = data.slice(contentStart, endIndex);
-            }
+            match = this.stringIndexMatch(data, prefix, suffix);
         }
         
         // Convert to microseconds (ms * 1000)
@@ -209,9 +213,10 @@ export class TerminalHandler {
         this.terminal.show();
 
         const startDisposable = (vscode.window as any).onDidStartTerminalShellExecution?.(async (e: any) => {
-            if (e.terminal === this.terminal) {
-                try {
-                    const stream = e.execution.read();
+            try {
+                const stream = e.execution.read();
+                
+                if (e.terminal === this.terminal) {
                     let outputBuffer = '';
                     let lastMatch = null;
                     let lastMatchSource = '';
@@ -342,9 +347,9 @@ export class TerminalHandler {
                         this.terminal?.dispose();
                         this.terminal = null;
                     }
-                } catch (err) {
-                    console.error('Error reading stream:', err);
                 }
+            } catch (err) {
+                console.error('Error reading stream:', err);
             }
         });
 
