@@ -1,26 +1,128 @@
-# Command Finished Barrier Race Condition
+# VSCode Terminal Integration Test Extension
 
 ## Overview
 
-There is a race condition between the OSC 633 ; D sequence being parsed and reaching AsyncIterable consumers. The barrier that signals command completion can be released before consumers receive the sequence data.
+This VSCode extension provides a test harness for investigating terminal command execution and shell integration behavior, focusing on a race condition between command completion sequences and their consumers.
 
-## Command Finished Sequence
+## Features
 
-The OSC 633 ; D sequence is used to indicate command completion in the terminal:
+- Interactive command execution interface
+- Configurable prompt command testing
+- Shell integration testing capabilities
+- Pattern matching analysis for command completion sequences
+- Performance metrics for different matching approaches
+- Detailed statistics and debug output
+
+## Installation
+
+1. Clone this repository
+2. Run `npm install` to install dependencies
+3. Open in VSCode and press F5 to run the extension
+4. Open the "Terminal Commands" view from the Activity Bar (the vertical bar on the far left of VSCode containing icons for Explorer, Search, etc.)
+
+## Usage
+
+The extension provides a webview interface with:
+
+- Command input field with preset command options
+- Configurable `$PROMPT_COMMAND` setting with preset (or manually set) options to test how different PROMPT_COMMAND delays affect command completion detection:
+  - `sleep 0.1` - adds 100ms delay after each command
+  - `sleep 0` - minimal delay after each command
+  - `true` - no-op command after each command
+  - `#` - comment, effectively disables PROMPT_COMMAND
+- Options for auto-closing terminals and shell integration
+- Known Issues:
+  - Using `echo a` with PROMPT_COMMAND set to `#` demonstrates the race condition:
+    - Command output is lost due to barrier releasing before output is processed
+    - This occurs because disabling PROMPT_COMMAND removes the timing delay that works around the race condition in VSCode's terminal integration
+- Real-time command output display
+- Pattern matching statistics
+
+### Running Tests
+
+1. Enter a command or select from the dropdown, or type your own custom command 
+2. Configure `PROMPT_COMMAND` if needed
+3. Click "Run Command" to execute
+4. View results in the output and statistics panels
+5. Use "Reset Stats" to clear counters
+
+### Pattern Matching Statistics
+
+The extension tracks three pattern types for command completion. A key test case that demonstrates the race condition is running `echo a` with PROMPT_COMMAND set to `#`:
+- This combination reliably triggers the race condition because:
+  1. `echo a` outputs data immediately
+  2. `#` as PROMPT_COMMAND provides no delay
+  3. The barrier releases before the terminal processes the output
+  4. Result: command output is lost and "Fallback" pattern matches but `a` is not captured; counters are adjusted accordingly.
+
+The extension tracks these patterns:
+
+1. VTE Pattern: Matches command completion with VTE notification
+    - VTE patterns are matched first because they are most reliable, but are separate from VSCode terminal integration
+    - You must disable VTE by exiting early from `/etc/profile.d/vte.*` if VTE extensions are installed
+    - If VTE is not disabled, VSCode pattern matching will not trigger 
+2. VSCode Pattern: Matches basic VSCode command completion escape sequences
+3. Fallback Pattern: Matches remaining command completion cases
+   - When using `echo a` with PROMPT_COMMAND=`#`, this pattern matches
+   - However, the command output (`a`) is lost because the barrier releases too early
+   - The pattern matches the sequence but cannot capture the output
+   - This demonstrates that the race condition affects command output capture
+
+Statistics show:
+- Match counts for each pattern type
+- No-match cases (indicates a bug)
+- Total 633;D sequence occurrences (to track lost command-end escape sequences)
+- Shell integration warnings (these should not happen)
+- Performance metrics for regex vs string index matching to see which implementation is faster for large outputs 
+
+## Race Condition Documentation
+
+### PROMPT_COMMAND and Shell Integration
+
+VSCode's terminal integration preserves PROMPT_COMMAND while adding shell integration:
+
+1. When a terminal starts:
+   - Original PROMPT_COMMAND is stored as __vsc_prompt_cmd_original
+   - VSCode's shell integration functions are declared
+   - These functions wrap commands with OSC 633;C and 633;D sequences
+
+2. Using PROMPT_COMMAND to control the race:
+   - `sleep 0.1` adds delay between command output and 633;D
+   - This delay allows write callback to complete
+   - Without delay (e.g. with `#`), the barrier releases before shell integration internals queue it to the consumer 
+   - The delay works around the race condition
+   - Shell functions execute __vsc_prompt_cmd_original
+   - Command output remains wrapped with VSCode sequences
+   - Only sequence emission timing is affected
+
+VSCode's terminal integration relies on PROMPT_COMMAND to detect command completion:
+
+1. The test harness allows configuring PROMPT_COMMAND to simulate different timing scenarios:
+   - Longer delays (sleep 0.1) make command completion more reliable but slower
+   - Minimal delays (sleep 0, true, #) may expose race conditions
+   - Each option affects when the 633;D sequence is emitted
+
+2. When a command runs, the sequence is:
+   - Command starts → OSC 633;C emitted
+   - Command executes
+   - PROMPT_COMMAND executes (with configured delay)
+   - Command completes → OSC 633;D emitted
+
+#### Command Finished Sequence
+
+The OSC 633;D sequence indicates command completion in the terminal:
 
 ```
 OSC 633 ; D [; <ExitCode>] ST
 ```
 
 Where:
-- 633 identifies this as a VS Code shell integration sequence
+- 633 identifies this as a VSCode shell integration sequence
 - D indicates command finished
 - Optional ExitCode parameter provides the command's exit status
 - ST is the string terminator (\x07)
 
-This sequence is sent by the shell integration script when a command completes execution.
-
-## Barrier Purpose
+### Barrier Purpose
 
 The barrier is used to:
 1. Block terminal operations while a command is executing
@@ -31,30 +133,44 @@ The barrier is critical for features that need to process command output, like t
 
 ## Empirical Evidence
 
-Testing with a dedicated test harness shows the race condition occurs frequently in practice. The test works by:
+Testing with the terminal handler shows the race condition through pattern matching statistics. The test works by:
 
-1. Setting up an AsyncIterable consumer that listens for terminal data via onData event
-2. Setting up a barrier release listener on the command detection capability
-3. Running a command that will emit the sequence
-4. When the barrier releases:
-   - Check if the consumer has seen the sequence in its data buffer
-   - If already seen, record as "found" - GOOD: data arrived before barrier (expected behavior)
-   - If not seen, record as "not found" - BUG: race condition occurred
-5. Using a timeout to detect test failures ("neither" case)
+1. Running commands that emit command completion sequences
+2. Attempting to match the sequences using three different patterns:
+   - VTE Pattern: Most reliable, matches VTE notification sequences (must be disabled to test VSCode race condition)
+   - VSCode Pattern: Matches VSCode command completion sequences
+   - Fallback Pattern: Matches remaining command completion cases
+3. Tracking match statistics:
+   - Pattern match counts for each type
+   - No-match cases indicating potential race conditions
+   - Total 633;D sequence occurrences to detect lost sequences
+   - Performance metrics comparing regex vs string index matching
 
-Results from 15 test runs:
+The implementation uses both regex and string index matching approaches to validate results:
+```typescript
+// Example from terminal-handler.ts
+const regexResult = this.benchmarkRegex(output, pattern);
+const indexResult = this.benchmarkStringIndex(output, prefix, suffix);
 ```
-OSC ] 633;D
-    found:     3     // GOOD: Consumer saw sequence before barrier released (expected behavior)
-    not found: 12    // BUG: Barrier released before consumer saw sequence (race condition)
-    neither:   1     // Test error or timeout
-(Run 15)
+
+When mismatches occur between regex and string index matching, they are recorded:
+```typescript
+if (regexMatch !== indexMatch) {
+    this.stats.matchMismatches.push(
+        `Pattern ${patternNumber} mismatch:\n` +
+        `  Regex: ${regexMatch}\n` +
+        `  Index: ${indexMatch}`
+    );
+}
 ```
 
-This data shows:
-- Only 20% of runs had the correct behavior (found case)
-- 80% of runs exhibited the race condition (not found case)
-- The high rate of "not found" cases demonstrates this is a real race condition affecting most command executions
+The statistics show:
+- Pattern match counts revealing which completion sequences are detected
+- Performance comparisons showing which matching method is faster
+- Shell integration warnings indicating potential setup issues
+- Total sequence counts to track sequence loss
+
+This data provides evidence of the race condition in practice.
 
 ## Data Flow
 
@@ -123,7 +239,17 @@ The key issue is that steps 3-4 happen before step 5-6. This means:
 
 The "found" case (correct behavior) only occurs when the write callback happens to complete before the barrier releases, which is not guaranteed by the current implementation.
 
-## Potential Solutions
+### Verification
+
+This can be verified by:
+
+1. Adding logging to the write callback in TerminalInstance._writeProcessData
+2. Adding logging to the command finished handler in ShellIntegrationAddon
+3. Observing that the command finished handler logs appear before write callback logs
+
+This confirms the sequence is parsed and handled before the write completes and reaches consumers.
+
+### Potential Solutions
 
 Several approaches could fix this race condition:
 
