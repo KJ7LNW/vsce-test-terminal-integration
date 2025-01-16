@@ -3,7 +3,6 @@ import { inspect } from 'util';
 
 export interface TerminalStats {
     patternCounts: number[];
-    runCount: number;
     lastMatches: string[];
     lastMatchSources: string[];
     noMatchExamples: string[];  // Store all no-match examples
@@ -24,7 +23,6 @@ export interface CommandOptions {
 export class TerminalHandler {
     private stats: TerminalStats = {
         patternCounts: [0, 0, 0, 0],  // VTE, VSCE, Fallback, No Match
-        runCount: 0,
         lastMatches: ['', '', ''],  // Only 3 patterns need last matches
         lastMatchSources: ['', '', ''],  // Only 3 patterns need sources
         noMatchExamples: [],  // Array to collect all no-match examples
@@ -46,7 +44,6 @@ export class TerminalHandler {
     public resetStats(): void {
         this.stats = {
             patternCounts: [0, 0, 0, 0],
-            runCount: 0,
             lastMatches: ['', '', ''],
             lastMatchSources: ['', '', ''],
             noMatchExamples: [],
@@ -287,7 +284,6 @@ export class TerminalHandler {
                         `    shIntegration warnings: ${this.stats.shellIntegrationWarnings}\n` +
                         `    Avg Regex Time:         ${this.stats.avgRegexTime.toFixed(3)}ms\n` +
                         `    Avg String Index Time:  ${this.stats.avgIndexTime.toFixed(3)}ms\n` +
-                        `(Run ${this.stats.runCount})\n` +
                         '\n' +
                         'Example matches:\n' +
                         (this.stats.lastMatches[0] ? 
@@ -310,13 +306,7 @@ export class TerminalHandler {
 
                     this.onDebug(countSummary);
 
-                    // Schedule next run if we haven't reached max runs
-                    if (this.stats.runCount < 100) {
-                        setTimeout(() => {
-                            this.stats.runCount++;
-                            this.terminal?.sendText(command);
-                        }, 100);
-                    } else if (options.autoCloseTerminal) {
+                    if (options.autoCloseTerminal) {
                         this.terminal?.dispose();
                         this.terminal = null;
                     }
