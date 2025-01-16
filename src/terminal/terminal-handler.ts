@@ -5,8 +5,8 @@ const BENCHMARK_ITERATIONS = 1000;
 
 export interface TerminalStats {
     patternCounts: number[];
-    lastMatches: string[];
-    lastMatchSources: string[];
+    lastMatches: (string | null)[];
+    lastMatchSources: (string | null)[];
     noMatchExamples: string[];  // Store all no-match examples
     total633DCount: number;  // Count of all \x1b\]633;D occurrences
     shellIntegrationWarnings: number;  // Count of shell integration unavailable warnings
@@ -66,8 +66,8 @@ export class TerminalHandler {
 
     private stats: TerminalStats = {
         patternCounts: [0, 0, 0, 0],  // VTE, VSCE, Fallback, No Match
-        lastMatches: ['', '', ''],  // Only 3 patterns need last matches
-        lastMatchSources: ['', '', ''],  // Only 3 patterns need sources
+        lastMatches: [null, null, null],  // Only 3 patterns need last matches
+        lastMatchSources: [null, null, null],  // Only 3 patterns need sources
         noMatchExamples: [],  // Array to collect all no-match examples
         total633DCount: 0,
         shellIntegrationWarnings: 0,
@@ -95,8 +95,8 @@ export class TerminalHandler {
     public resetStats(): void {
         this.stats = {
             patternCounts: [0, 0, 0, 0],
-            lastMatches: ['', '', ''],
-            lastMatchSources: ['', '', ''],
+            lastMatches: [null, null, null],
+            lastMatchSources: [null, null, null],
             noMatchExamples: [],
             total633DCount: 0,
             shellIntegrationWarnings: 0,
@@ -318,18 +318,18 @@ export class TerminalHandler {
                         `    Avg String Index Time:  ${this.stats.avgIndexTime.toFixed(3)}µs\n` +
                         '\n' +
                         'Example matches:\n' +
-                        (this.stats.lastMatches[0] ? 
+                        (this.stats.lastMatches[0] !== null ? 
                             `Pattern 1 (VTE):\n` +
-                            `  Match: \n  ${inspect(this.stats.lastMatches[0])}\n` +
+                            `  Match: \n  ${inspect(this.stats.lastMatches[0])}\n\n` +
                             `  From:  \n  ${inspect(this.stats.lastMatchSources[0])}\n\n` : '') +
-                        (this.stats.lastMatches[1] ? 
+                        (this.stats.lastMatches[1] !== null ? 
                             `Pattern 2 (VSCE):\n` +
-                            `  Match: \n  ${inspect(this.stats.lastMatches[1])}\n` +
-                            `  From:  \n  ${inspect(this.stats.lastMatchSources[1])}\n\n` : '') +
-                        (this.stats.lastMatches[2] ? 
+                            `  Match: \n  ${inspect(this.stats.lastMatches[1])}\n\n` +
+                            `  From:  \n    ${inspect(this.stats.lastMatchSources[1])}\n\n` : '') +
+                        (this.stats.lastMatches[2] !== null ? 
                             `Pattern 3 (Fallback):\n` +
-                            `  Match: \n  ${inspect(this.stats.lastMatches[2])}\n` +
-                            `  From:  \n  ${inspect(this.stats.lastMatchSources[2])}\n\n` : '') +
+                            `  Match: \n  ${inspect(this.stats.lastMatches[2])}\n\n` +
+                            `  From:  \n    ${inspect(this.stats.lastMatchSources[2])}\n\n` : '') +
                         (this.stats.noMatchExamples.length > 0 ? 
                             `No match examples:\n` +
                             this.stats.noMatchExamples.map((example, i) => 
