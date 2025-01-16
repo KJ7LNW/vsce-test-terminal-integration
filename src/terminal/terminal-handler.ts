@@ -315,7 +315,7 @@ export class TerminalHandler {
                         `    Total 633;D count:      ${this.stats.total633DCount}\n` +
                         `    shIntegration warnings: ${this.stats.shellIntegrationWarnings}\n` +
                         `    Avg Regex Time:         ${this.stats.avgRegexTime.toFixed(3)}µs\n` +
-                        `    Avg String Index Time:  ${this.stats.avgIndexTime.toFixed(3)}µs\n` +
+                        `    Avg String Index Time:  ${this.stats.avgIndexTime.toFixed(3)}µs (${(this.stats.avgRegexTime / this.stats.avgIndexTime).toFixed(1)}x faster)\n` +
                         '\n' +
                         'Example matches:\n' +
                         (this.stats.lastMatches[0] !== null ? 
