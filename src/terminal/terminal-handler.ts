@@ -158,132 +158,135 @@ export class TerminalHandler {
                     let lastMatchSource = '';
                     let lastMatchPattern = 0;
 
+                    let output = '';
                     for await (const data of stream) {
-                        // Count total occurrences of \x1b\]633;D
-                        const dMatches = data.match(/\x1b\]633;D/gs);
-                        if (dMatches) {
-                            this.stats.total633DCount += dMatches.length;
-                        }
+                        output += data;
+                    }
 
-                        // Try patterns in sequence and short circuit on first match
-                        let match = null;
-                        let matchSource = 0;
+                    // Count total occurrences of \x1b\]633;D in complete output
+                    const dMatches = output.match(/\x1b\]633;D/gs);
+                    if (dMatches) {
+                        this.stats.total633DCount += dMatches.length;
+                    }
 
-                        // Pattern 1: Command completed notification (VTE)
-                        const pattern1 = /\x1b\]633;C\x07(.*?)\x1b\]777;notify;Command completed/s;
+                    // Try patterns in sequence and short circuit on first match
+                    let match = null;
+                    let matchSource = 0;
+
+                    // Pattern 1: Command completed notification (VTE)
+                    const pattern1 = /\x1b\]633;C\x07(.*?)\x1b\]777;notify;Command completed/s;
+                    
+                    // Benchmark both approaches for Pattern 1
+                    const regexResult1 = this.benchmarkRegex(output, pattern1);
+                    const indexResult1 = this.benchmarkStringIndex(
+                        output,
+                        '\x1b]633;C\x07',
+                        '\x1b]777;notify;Command completed'
+                    );
+                    
+                    // Validate matches are identical
+                    const regexMatch1 = regexResult1.match?.[1];
+                    const indexMatch1 = indexResult1.match;
+                    if (regexMatch1 !== null && indexMatch1 !== null && regexMatch1 !== indexMatch1) {
+                        this.stats.matchMismatches.push(
+                            `Pattern 1 mismatch:\n` +
+                            `  Regex: ${regexMatch1}\n` +
+                            `  Index: ${indexMatch1}`
+                        );
+                    }
+                    
+                    this.stats.regexTimes.push(regexResult1.time);
+                    this.stats.indexTimes.push(indexResult1.time);
+                    
+                    // Update averages
+                    this.stats.avgRegexTime = this.stats.regexTimes.reduce((a, b) => a + b, 0) / this.stats.regexTimes.length;
+                    this.stats.avgIndexTime = this.stats.indexTimes.reduce((a, b) => a + b, 0) / this.stats.indexTimes.length;
+
+                    match = regexMatch1;
+                    if (match) {
+                        matchSource = 1;
+                    }
+                    
+                    // Pattern 2: Basic command completion (VSCE)
+                    if (!match) {
+                        const pattern2 = /\x1b\]633;C\x07(.*?)\x1b\]633;D/s;
                         
-                        // Benchmark both approaches for Pattern 1
-                        const regexResult1 = this.benchmarkRegex(data, pattern1);
-                        const indexResult1 = this.benchmarkStringIndex(
-                            data,
+                        const regexResult2 = this.benchmarkRegex(output, pattern2);
+                        const indexResult2 = this.benchmarkStringIndex(
+                            output,
                             '\x1b]633;C\x07',
-                            '\x1b]777;notify;Command completed'
+                            '\x1b]633;D'
                         );
                         
                         // Validate matches are identical
-                        const regexMatch1 = regexResult1.match?.[1];
-                        const indexMatch1 = indexResult1.match;
-                        if (regexMatch1 !== null && indexMatch1 !== null && regexMatch1 !== indexMatch1) {
+                        const regexMatch2 = regexResult2.match?.[1];
+                        const indexMatch2 = indexResult2.match;
+                        if (regexMatch2 !== null && indexMatch2 !== null && regexMatch2 !== indexMatch2) {
                             this.stats.matchMismatches.push(
-                                `Pattern 1 mismatch:\n` +
-                                `  Regex: ${regexMatch1}\n` +
-                                `  Index: ${indexMatch1}`
+                                `Pattern 2 mismatch:\n` +
+                                `  Regex: ${regexMatch2}\n` +
+                                `  Index: ${indexMatch2}`
                             );
                         }
                         
-                        this.stats.regexTimes.push(regexResult1.time);
-                        this.stats.indexTimes.push(indexResult1.time);
+                        this.stats.regexTimes.push(regexResult2.time);
+                        this.stats.indexTimes.push(indexResult2.time);
                         
-                        // Update averages
-                        this.stats.avgRegexTime = this.stats.regexTimes.reduce((a, b) => a + b, 0) / this.stats.regexTimes.length;
-                        this.stats.avgIndexTime = this.stats.indexTimes.reduce((a, b) => a + b, 0) / this.stats.indexTimes.length;
-
-                        match = regexMatch1;
+                        match = regexMatch2;
                         if (match) {
-                            matchSource = 1;
+                            matchSource = 2;
                         }
+                    }
+                    
+                    // Pattern 3: Fallback pattern
+                    if (!match) {
+                        const pattern3 = /\x1b\]633;C\x07(.*)$/s;
                         
-                        // Pattern 2: Basic command completion (VSCE)
-                        if (!match) {
-                            const pattern2 = /\x1b\]633;C\x07(.*?)\x1b\]633;D/s;
-                            
-                            const regexResult2 = this.benchmarkRegex(data, pattern2);
-                            const indexResult2 = this.benchmarkStringIndex(
-                                data,
-                                '\x1b]633;C\x07',
-                                '\x1b]633;D'
+                        const regexResult3 = this.benchmarkRegex(output, pattern3);
+                        const indexResult3 = this.benchmarkStringIndex(
+                            output,
+                            '\x1b]633;C\x07',
+                            null // null means match to end
+                        );
+                        
+                        // Validate matches are identical
+                        const regexMatch3 = regexResult3.match?.[1];
+                        const indexMatch3 = indexResult3.match;
+                        if (regexMatch3 !== null && indexMatch3 !== null && regexMatch3 !== indexMatch3) {
+                            this.stats.matchMismatches.push(
+                                `Pattern 3 mismatch:\n` +
+                                `  Regex: ${regexMatch3}\n` +
+                                `  Index: ${indexMatch3}`
                             );
-                            
-                            // Validate matches are identical
-                            const regexMatch2 = regexResult2.match?.[1];
-                            const indexMatch2 = indexResult2.match;
-                            if (regexMatch2 !== null && indexMatch2 !== null && regexMatch2 !== indexMatch2) {
-                                this.stats.matchMismatches.push(
-                                    `Pattern 2 mismatch:\n` +
-                                    `  Regex: ${regexMatch2}\n` +
-                                    `  Index: ${indexMatch2}`
-                                );
-                            }
-                            
-                            this.stats.regexTimes.push(regexResult2.time);
-                            this.stats.indexTimes.push(indexResult2.time);
-                            
-                            match = regexMatch2;
-                            if (match) {
-                                matchSource = 2;
-                            }
                         }
                         
-                        // Pattern 3: Fallback pattern
-                        if (!match) {
-                            const pattern3 = /\x1b\]633;C\x07(.*)$/s;
-                            
-                            const regexResult3 = this.benchmarkRegex(data, pattern3);
-                            const indexResult3 = this.benchmarkStringIndex(
-                                data,
-                                '\x1b]633;C\x07',
-                                null // null means match to end
-                            );
-                            
-                            // Validate matches are identical
-                            const regexMatch3 = regexResult3.match?.[1];
-                            const indexMatch3 = indexResult3.match;
-                            if (regexMatch3 !== null && indexMatch3 !== null && regexMatch3 !== indexMatch3) {
-                                this.stats.matchMismatches.push(
-                                    `Pattern 3 mismatch:\n` +
-                                    `  Regex: ${regexMatch3}\n` +
-                                    `  Index: ${indexMatch3}`
-                                );
-                            }
-                            
-                            this.stats.regexTimes.push(regexResult3.time);
-                            this.stats.indexTimes.push(indexResult3.time);
-                            
-                            match = regexMatch3;
-                            if (match) {
-                                matchSource = 3;
-                            }
-                        }
-
-                        // Buffer the output
+                        this.stats.regexTimes.push(regexResult3.time);
+                        this.stats.indexTimes.push(indexResult3.time);
+                        
+                        match = regexMatch3;
                         if (match) {
-                            lastMatch = match;
-                            lastMatchSource = data;
-                            lastMatchPattern = matchSource;
-                            outputBuffer = `Match found (Pattern ${matchSource}):\n${inspect(match)}\n\nFrom:\n${inspect(data)}`;
-                        } else {
-                            outputBuffer = `No match found in:\n${inspect(data)}`;
+                            matchSource = 3;
                         }
+                    }
 
-                        // Update stats
-                        if (match) {
-                            this.stats.patternCounts[matchSource - 1]++;
-                            this.stats.lastMatches[matchSource - 1] = match;
-                            this.stats.lastMatchSources[matchSource - 1] = data;
-                        } else {
-                            this.stats.patternCounts[3]++;
-                            this.stats.noMatchExamples.push(data);
-                        }
+                    // Buffer the output
+                    if (match) {
+                        lastMatch = match;
+                        lastMatchSource = output;
+                        lastMatchPattern = matchSource;
+                        outputBuffer = `Match found (Pattern ${matchSource}):\n${inspect(match)}\n\nFrom:\n${inspect(output)}`;
+                    } else {
+                        outputBuffer = `No match found in:\n${inspect(output)}`;
+                    }
+
+                    // Update stats
+                    if (match) {
+                        this.stats.patternCounts[matchSource - 1]++;
+                        this.stats.lastMatches[matchSource - 1] = match;
+                        this.stats.lastMatchSources[matchSource - 1] = output;
+                    } else {
+                        this.stats.patternCounts[3]++;
+                        this.stats.noMatchExamples.push(output);
                     }
 
                     // Write final output and stats in one shot
