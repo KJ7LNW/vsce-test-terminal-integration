@@ -128,6 +128,8 @@
 
         // Handle reset button
         resetButton.addEventListener('click', () => {
+            output.textContent = '';
+            debugOutput.textContent = '';
             vscode.postMessage({
                 command: 'resetCounts'
             });
