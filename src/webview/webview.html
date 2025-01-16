@@ -40,30 +40,77 @@
             padding-right: 10px;
             text-align: right;
         }
-        input[type="text"] {
+        .editable-input {
             width: 100%;
             padding: 4px;
             box-sizing: border-box;
             background-color: var(--vscode-input-background);
             color: var(--vscode-input-foreground);
             border: 1px solid var(--vscode-input-border);
+            min-height: 24px;
+            cursor: text;
+            position: relative;
         }
-        input[type="text"]:focus {
+        .editable-input:focus {
             outline: 1px solid var(--vscode-focusBorder);
             border-color: var(--vscode-focusBorder);
+        }
+        .dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background-color: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            display: none;
+            z-index: 1000;
+        }
+        .dropdown.show {
+            display: block;
+        }
+        .dropdown-item {
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+        .dropdown-item:hover {
+            background-color: var(--vscode-list-hoverBackground);
+        }
+        .input-wrapper {
+            position: relative;
+            width: 100%;
         }
     </style>
 </head>
 <body>
     <div class="instructions">
         Press "Run Command" repeatedly and quickly to watch the counts change.
-        If there is no bug, only the "found" count should increment.
+        If there are bugs, "No Matches" will increment.
+        Note: Longer command outputs and varying delays between executions may affect the matching effectiveness.
+        The goal is to have a shell integration mechanism that is sensitive to neither output size nor delay.
     </div>
     <div class="input-container">
         <span class="input-label">Command to run:</span>
-        <input type="text" id="command-input">
+        <div class="input-wrapper">
+            <div id="command-input" class="editable-input" contenteditable="true" onfocus="showDropdown('command-dropdown')"></div>
+            <div id="command-dropdown" class="dropdown">
+                <div class="dropdown-item" onclick="selectOption('command-input', 'echo a')">echo a</div>
+                <div class="dropdown-item" onclick="selectOption('command-input', 'echo -n &quot;a&quot;')">echo -n "a"</div>
+                <div class="dropdown-item" onclick="selectOption('command-input', 'echo &quot;&quot;')">echo ""</div>
+                <div class="dropdown-item" onclick="selectOption('command-input', 'echo -n &quot;&quot;')">echo -n ""</div>
+                <div class="dropdown-item" onclick="selectOption('command-input', 'base64 < /dev/urandom| head -1')">base64 < /dev/urandom| head -1</div>
+                <div class="dropdown-item" onclick="selectOption('command-input', 'base64 < /dev/urandom| head -30')">base64 < /dev/urandom| head -30</div>
+            </div>
+        </div>
         <span class="input-label">$PROMPT_COMMAND:</span>
-        <input type="text" id="prompt-command-input">
+        <div class="input-wrapper">
+            <div id="prompt-command-input" class="editable-input" contenteditable="true" onfocus="showDropdown('prompt-dropdown')"></div>
+            <div id="prompt-dropdown" class="dropdown">
+                <div class="dropdown-item" onclick="selectOption('prompt-command-input', 'sleep 0.1')">sleep 0.1</div>
+                <div class="dropdown-item" onclick="selectOption('prompt-command-input', 'sleep 0')">sleep 0</div>
+                <div class="dropdown-item" onclick="selectOption('prompt-command-input', 'true')">true</div>
+                <div class="dropdown-item" onclick="selectOption('prompt-command-input', '#')">#</div>
+            </div>
+        </div>
     </div>
     <div class="checkbox-container">
         <input type="checkbox" id="auto-close">
@@ -101,6 +148,27 @@
         const output = document.getElementById('output');
         const debugOutput = document.getElementById('debug-output');
 
+        function showDropdown(dropdownId) {
+            const dropdown = document.getElementById(dropdownId);
+            dropdown.classList.add('show');
+            
+            // Hide dropdown when clicking outside
+            document.addEventListener('click', function hideDropdown(e) {
+                if (!e.target.closest('.input-wrapper')) {
+                    dropdown.classList.remove('show');
+                    document.removeEventListener('click', hideDropdown);
+                }
+            });
+        }
+
+        function selectOption(inputId, value) {
+            const input = document.getElementById(inputId);
+            input.textContent = value;
+            document.getElementById(inputId + '-dropdown').classList.remove('show');
+            // Focus run button to close dropdown and highlight next action
+            runButton.focus();
+        }
+
         function copyToClipboard(elementId) {
             const element = document.getElementById(elementId);
             const text = element.textContent;
@@ -115,16 +183,16 @@
         }
 
         // Set default values and track last prompt command
-        commandInput.value = 'echo a';
+        commandInput.textContent = 'echo a';
         const promptCommandInput = document.getElementById('prompt-command-input');
-        promptCommandInput.value = 'sleep 0.1';
-        let lastPromptCommand = promptCommandInput.value;
+        promptCommandInput.textContent = 'sleep 0.1';
+        let lastPromptCommand = promptCommandInput.textContent;
         
         runButton.addEventListener('click', () => {
-            const command = commandInput.value.trim() || 'echo a';
+            const command = commandInput.textContent.trim() || 'echo a';
             const autoClose = document.getElementById('auto-close').checked;
             const useShellIntegration = document.getElementById('use-shell-integration').checked;
-            const promptCommand = promptCommandInput.value.trim() || 'sleep 0.1';
+            const promptCommand = promptCommandInput.textContent.trim() || 'sleep 0.1';
             
             // Force terminal restart if prompt command changed
             const forceRestart = promptCommand !== lastPromptCommand;
@@ -159,6 +227,14 @@
         // Handle Enter key in input
         commandInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
+                e.preventDefault();
+                runButton.click();
+            }
+        });
+
+        promptCommandInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
                 runButton.click();
             }
         });
