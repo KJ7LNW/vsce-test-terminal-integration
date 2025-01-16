@@ -45,6 +45,13 @@ export class TerminalHandler {
     constructor(private readonly onOutput: (text: string) => void,
                 private readonly onDebug: (text: string) => void) {}
 
+    public closeTerminal(): void {
+        if (this.terminal) {
+            this.terminal.dispose();
+            this.terminal = null;
+        }
+    }
+
     public resetStats(): void {
         this.stats = {
             patternCounts: [0, 0, 0, 0],

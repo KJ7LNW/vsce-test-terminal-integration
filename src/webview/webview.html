@@ -162,11 +162,44 @@
         }
 
         function selectOption(inputId, value) {
-            const input = document.getElementById(inputId);
-            input.textContent = value;
-            document.getElementById(inputId + '-dropdown').classList.remove('show');
-            // Focus run button to close dropdown and highlight next action
-            runButton.focus();
+            console.log('selectOption called with:', inputId, value);
+            
+            // Send message first before any operations that might fail
+            console.log('Sending inputChanged message');
+            vscode.postMessage({
+                command: 'inputChanged'
+            });
+            
+            try {
+                const input = document.getElementById(inputId);
+                console.log('Current input value:', input.textContent);
+                
+                input.textContent = value;
+                console.log('Set new value:', value);
+                
+                // Get correct dropdown ID
+                const dropdownId = inputId === 'command-input' ? 'command-dropdown' : 'prompt-dropdown';
+                const dropdown = document.getElementById(dropdownId);
+                if (dropdown) {
+                    dropdown.classList.remove('show');
+                    console.log('Dropdown closed');
+                }
+                
+                // Update last values
+                if (inputId === 'command-input') {
+                    lastCommand = value;
+                    console.log('Updated lastCommand:', lastCommand);
+                } else if (inputId === 'prompt-command-input') {
+                    lastPromptCommand = value;
+                    console.log('Updated lastPromptCommand:', lastPromptCommand);
+                }
+                
+                // Focus run button to close dropdown and highlight next action
+                runButton.focus();
+                console.log('Focused run button');
+            } catch (error) {
+                console.error('Error in selectOption:', error);
+            }
         }
 
         function copyToClipboard(elementId) {
@@ -182,11 +215,33 @@
             });
         }
 
-        // Set default values and track last prompt command
+        // Set default values and track last values
         commandInput.textContent = 'echo a';
         const promptCommandInput = document.getElementById('prompt-command-input');
         promptCommandInput.textContent = 'sleep 0.1';
         let lastPromptCommand = promptCommandInput.textContent;
+        let lastCommand = commandInput.textContent;
+
+        // Add input listeners for immediate terminal closure
+        commandInput.addEventListener('input', () => {
+            const command = commandInput.textContent.trim();
+            if (command !== lastCommand) {
+                lastCommand = command;
+                vscode.postMessage({
+                    command: 'inputChanged'
+                });
+            }
+        });
+
+        promptCommandInput.addEventListener('input', () => {
+            const promptCommand = promptCommandInput.textContent.trim();
+            if (promptCommand !== lastPromptCommand) {
+                lastPromptCommand = promptCommand;
+                vscode.postMessage({
+                    command: 'inputChanged'
+                });
+            }
+        });
         
         runButton.addEventListener('click', () => {
             const command = commandInput.textContent.trim() || 'echo a';

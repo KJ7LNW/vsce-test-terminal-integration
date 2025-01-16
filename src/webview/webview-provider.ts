@@ -47,6 +47,9 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
                 case 'resetCounts':
                     this.terminalHandler.resetStats();
                     break;
+                case 'inputChanged':
+                    this.terminalHandler.closeTerminal();
+                    break;
             }
         });
     }
