@@ -191,6 +191,8 @@ export class TerminalHandler {
                     // Try patterns in sequence and short circuit on first match
                     let match = null;
                     let matchSource = 0;
+                    let regexResult2: { match: RegExpExecArray | null; time: number } = { match: null, time: 0 };
+                    let indexResult2: { match: string | null; time: number } = { match: null, time: 0 };
 
                     // Pattern 1: Command completed notification (VTE)
                     const pattern1 = /\x1b\]633;C\x07(.*?)\x1b\]777;notify;Command completed/s;
@@ -221,14 +223,22 @@ export class TerminalHandler {
                     this.stats.avgRegexTime = this.stats.regexTimes.reduce((a, b) => a + b, 0) / this.stats.regexTimes.length;
                     this.stats.avgIndexTime = this.stats.indexTimes.reduce((a, b) => a + b, 0) / this.stats.indexTimes.length;
 
-                    match = regexMatch1;
-                    if (match) {
+                    if (regexMatch1 !== null && regexMatch1 !== undefined) {
+                        match = regexMatch1;
                         matchSource = 1;
                     }
                     
                     // Pattern 2: Basic command completion (VSCE)
-                    if (!match) {
+                    if (match === null) {
                         const pattern2 = /\x1b\]633;C\x07(.*?)\x1b\]633;D/s;
+                        
+                        // Debug exact positions
+                        const startPos = output.indexOf('\x1b]633;C\x07');
+                        const endPos = output.indexOf('\x1b]633;D', startPos);
+                        this.onDebug(`Pattern 2 sequence positions:
+                            Start sequence at: ${startPos}
+                            End sequence at: ${endPos}
+                            Characters between: "${output.substring(startPos + 8, endPos)}"`);
                         
                         const regexResult2 = this.benchmarkRegex(output, pattern2);
                         const indexResult2 = this.benchmarkStringIndex(
@@ -237,28 +247,36 @@ export class TerminalHandler {
                             '\x1b]633;D'
                         );
                         
-                        // Validate matches are identical
+                        // Debug match attempts
+                        this.onDebug(`Pattern 2 match attempts:
+                            Regex result: ${inspect(regexResult2.match)}
+                            Index result: ${inspect(indexResult2.match)}
+                            Full pattern: ${inspect(pattern2)}
+                            Full output: ${inspect(output)}`);
+                        
+                        // Extract and validate matches
                         const regexMatch2 = regexResult2.match?.[1];
                         const indexMatch2 = indexResult2.match;
-                        if (regexMatch2 !== null && indexMatch2 !== null && regexMatch2 !== indexMatch2) {
-                            this.stats.matchMismatches.push(
-                                `Pattern 2 mismatch:\n` +
-                                `  Regex: ${regexMatch2}\n` +
-                                `  Index: ${indexMatch2}`
-                            );
-                        }
                         
-                        this.stats.regexTimes.push(regexResult2.time);
-                        this.stats.indexTimes.push(indexResult2.time);
-                        
-                        match = regexMatch2;
-                        if (match) {
+                        if (regexMatch2 !== null && regexMatch2 !== undefined) {
+                            if (indexMatch2 !== null && regexMatch2 !== indexMatch2) {
+                                this.stats.matchMismatches.push(
+                                    `Pattern 2 mismatch:\n` +
+                                    `  Regex: ${regexMatch2}\n` +
+                                    `  Index: ${indexMatch2}`
+                                );
+                            }
+                            
+                            this.stats.regexTimes.push(regexResult2.time);
+                            this.stats.indexTimes.push(regexResult2.time);
+                            
+                            match = regexMatch2;
                             matchSource = 2;
                         }
                     }
                     
                     // Pattern 3: Fallback pattern
-                    if (!match) {
+                    if (match === null) {
                         const pattern3 = /\x1b\]633;C\x07(.*)$/s;
                         
                         const regexResult3 = this.benchmarkRegex(output, pattern3);
@@ -268,38 +286,45 @@ export class TerminalHandler {
                             null // null means match to end
                         );
                         
-                        // Validate matches are identical
+                        // Extract and validate matches
                         const regexMatch3 = regexResult3.match?.[1];
                         const indexMatch3 = indexResult3.match;
-                        if (regexMatch3 !== null && indexMatch3 !== null && regexMatch3 !== indexMatch3) {
-                            this.stats.matchMismatches.push(
-                                `Pattern 3 mismatch:\n` +
-                                `  Regex: ${regexMatch3}\n` +
-                                `  Index: ${indexMatch3}`
-                            );
-                        }
                         
-                        this.stats.regexTimes.push(regexResult3.time);
-                        this.stats.indexTimes.push(indexResult3.time);
-                        
-                        match = regexMatch3;
-                        if (match) {
+                        if (regexMatch3 !== null && regexMatch3 !== undefined) {
+                            if (indexMatch3 !== null && regexMatch3 !== indexMatch3) {
+                                this.stats.matchMismatches.push(
+                                    `Pattern 3 mismatch:\n` +
+                                    `  Regex: ${regexMatch3}\n` +
+                                    `  Index: ${indexMatch3}`
+                                );
+                            }
+                            
+                            this.stats.regexTimes.push(regexResult3.time);
+                            this.stats.indexTimes.push(regexResult3.time);
+                            
+                            match = regexMatch3;
                             matchSource = 3;
                         }
                     }
 
-                    // Buffer the output
-                    if (match) {
+                    // Buffer the output with detailed matching info
+                    if (match !== null) {
                         lastMatch = match;
                         lastMatchSource = output;
                         lastMatchPattern = matchSource;
-                        outputBuffer = `Match found (Pattern ${matchSource}):\n${inspect(match)}\n\nFrom:\n${inspect(output)}`;
+                        outputBuffer = `Match found (Pattern ${matchSource}):\n${inspect(match)}\n\nFrom:\n${inspect(output)}\n\n` +
+                            `Pattern 2 Details:\n` +
+                            `Regex match: ${inspect(regexResult2?.match?.[1])}\n` +
+                            `Index match: ${inspect(indexResult2?.match)}\n`;
                     } else {
-                        outputBuffer = `No match found in:\n${inspect(output)}`;
+                        outputBuffer = `No match found in:\n${inspect(output)}\n\n` +
+                            `Pattern 2 Details:\n` +
+                            `Regex match: ${inspect(regexResult2?.match?.[1])}\n` +
+                            `Index match: ${inspect(indexResult2?.match)}\n`;
                     }
 
                     // Update stats
-                    if (match) {
+                    if (match !== null && typeof match === 'string') {
                         this.stats.patternCounts[matchSource - 1]++;
                         this.stats.lastMatches[matchSource - 1] = match;
                         this.stats.lastMatchSources[matchSource - 1] = output;
