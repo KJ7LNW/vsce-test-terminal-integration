@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { inspect } from 'util';
 
+const BENCHMARK_ITERATIONS = 1000;
+
 export interface TerminalStats {
     patternCounts: number[];
     lastMatches: string[];
@@ -61,35 +63,45 @@ export class TerminalHandler {
 
     private benchmarkRegex(data: string, pattern: RegExp): { match: RegExpExecArray | null; time: number } {
         const start = performance.now();
-        const match = pattern.exec(data);
-        const time = performance.now() - start;
+        let match: RegExpExecArray | null = null;
+        
+        // Run multiple iterations for more accurate timing
+        for (let i = 0; i < BENCHMARK_ITERATIONS; i++) {
+            match = pattern.exec(data);
+        }
+        
+        // Convert to microseconds (ms * 1000)
+        const time = ((performance.now() - start) / BENCHMARK_ITERATIONS) * 1000;
         return { match, time };
     }
 
     private benchmarkStringIndex(data: string, prefix: string, suffix: string | null): { match: string | null; time: number } {
         const start = performance.now();
-        const startIndex = data.indexOf(prefix);
-        if (startIndex === -1) {
-            const time = performance.now() - start;
-            return { match: null, time };
-        }
+        let match: string | null = null;
         
-        const contentStart = startIndex + prefix.length;
-        let match: string | null;
-        
-        if (suffix === null) {
-            // When suffix is null, just take everything after the prefix
-            match = data.slice(contentStart);
-        } else {
-            const endIndex = data.indexOf(suffix, contentStart);
-            if (endIndex === -1) {
-                const time = performance.now() - start;
-                return { match: null, time };
+        // Run multiple iterations for more accurate timing
+        for (let i = 0; i < BENCHMARK_ITERATIONS; i++) {
+            const startIndex = data.indexOf(prefix);
+            if (startIndex === -1) {
+                continue;
             }
-            match = data.slice(contentStart, endIndex);
+            
+            const contentStart = startIndex + prefix.length;
+            
+            if (suffix === null) {
+                // When suffix is null, just take everything after the prefix
+                match = data.slice(contentStart);
+            } else {
+                const endIndex = data.indexOf(suffix, contentStart);
+                if (endIndex === -1) {
+                    continue;
+                }
+                match = data.slice(contentStart, endIndex);
+            }
         }
         
-        const time = performance.now() - start;
+        // Convert to microseconds (ms * 1000)
+        const time = ((performance.now() - start) / BENCHMARK_ITERATIONS) * 1000;
         return { match, time };
     }
 
@@ -303,8 +315,8 @@ export class TerminalHandler {
                         `    No matches:             ${this.stats.patternCounts[3]}\n` +
                         `    Total 633;D count:      ${this.stats.total633DCount}\n` +
                         `    shIntegration warnings: ${this.stats.shellIntegrationWarnings}\n` +
-                        `    Avg Regex Time:         ${this.stats.avgRegexTime.toFixed(3)}ms\n` +
-                        `    Avg String Index Time:  ${this.stats.avgIndexTime.toFixed(3)}ms\n` +
+                        `    Avg Regex Time:         ${this.stats.avgRegexTime.toFixed(3)}µs\n` +
+                        `    Avg String Index Time:  ${this.stats.avgIndexTime.toFixed(3)}µs\n` +
                         '\n' +
                         'Example matches:\n' +
                         (this.stats.lastMatches[0] ? 
