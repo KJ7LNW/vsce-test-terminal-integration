@@ -18,6 +18,7 @@ export interface TerminalStats {
 export interface CommandOptions {
     autoCloseTerminal: boolean;
     useShellIntegration: boolean;
+    promptCommand?: string;
 }
 
 export class TerminalHandler {
@@ -37,7 +38,8 @@ export class TerminalHandler {
 
     private terminal: vscode.Terminal | null = null;
     private isExecuting = false;
-
+    private lastPromptCommand: string = 'sleep 0.1';
+    
     constructor(private readonly onOutput: (text: string) => void,
                 private readonly onDebug: (text: string) => void) {}
 
@@ -125,9 +127,25 @@ export class TerminalHandler {
         }
         this.isExecuting = true;
 
-        // Create terminal if it doesn't exist
+        const promptCommand = (options.promptCommand || 'sleep 0.1').trim();
+
+        // Handle prompt command changes first
+        if (this.terminal && promptCommand !== this.lastPromptCommand) {
+            this.terminal.dispose();
+            this.terminal = null;
+        }
+
+        // Create new terminal if needed
         if (!this.terminal) {
-            this.terminal = vscode.window.createTerminal('Command Runner');
+            const env: { [key: string]: string } = {};
+            if (promptCommand.trim()) {
+                env.PROMPT_COMMAND = promptCommand;
+            }
+            this.terminal = vscode.window.createTerminal({
+                name: 'Command Runner',
+                env
+            });
+            this.lastPromptCommand = promptCommand;
         }
         this.terminal.show();
 

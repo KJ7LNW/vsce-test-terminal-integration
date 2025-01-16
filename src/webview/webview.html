@@ -29,6 +29,29 @@
             padding: 4px 8px;
             cursor: pointer;
         }
+        .input-container {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .input-label {
+            white-space: nowrap;
+            padding-right: 10px;
+            text-align: right;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 4px;
+            box-sizing: border-box;
+            background-color: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+            border: 1px solid var(--vscode-input-border);
+        }
+        input[type="text"]:focus {
+            outline: 1px solid var(--vscode-focusBorder);
+            border-color: var(--vscode-focusBorder);
+        }
     </style>
 </head>
 <body>
@@ -36,8 +59,12 @@
         Press "Run Command" repeatedly and quickly to watch the counts change.
         If there is no bug, only the "found" count should increment.
     </div>
-    <div class="input-label">Command to run (default: "echo a"):</div>
-    <input type="text" id="command-input" placeholder="Enter command...">
+    <div class="input-container">
+        <span class="input-label">Command to run:</span>
+        <input type="text" id="command-input">
+        <span class="input-label">$PROMPT_COMMAND:</span>
+        <input type="text" id="prompt-command-input">
+    </div>
     <div class="checkbox-container">
         <input type="checkbox" id="auto-close">
         <label for="auto-close">Auto-close terminal after execution</label>
@@ -87,19 +114,29 @@
             });
         }
 
-        // Set default command
+        // Set default values and track last prompt command
         commandInput.value = 'echo a';
+        const promptCommandInput = document.getElementById('prompt-command-input');
+        promptCommandInput.value = 'sleep 0.1';
+        let lastPromptCommand = promptCommandInput.value;
         
         runButton.addEventListener('click', () => {
             const command = commandInput.value.trim() || 'echo a';
             const autoClose = document.getElementById('auto-close').checked;
             const useShellIntegration = document.getElementById('use-shell-integration').checked;
+            const promptCommand = promptCommandInput.value.trim() || 'sleep 0.1';
+            
+            // Force terminal restart if prompt command changed
+            const forceRestart = promptCommand !== lastPromptCommand;
+            lastPromptCommand = promptCommand;
+            
             output.textContent = '';
             debugOutput.textContent = '';
             vscode.postMessage({
                 command: 'runCommand',
                 text: command,
-                autoCloseTerminal: autoClose,
+                promptCommand: promptCommand,
+                autoCloseTerminal: autoClose || forceRestart,
                 useShellIntegration: useShellIntegration
             });
         });
