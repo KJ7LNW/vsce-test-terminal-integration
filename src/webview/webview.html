@@ -5,12 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Terminal Command Runner</title>
     <style>
+        .output-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .output-box {
+            border: 1px solid #ccc;
+        }
+        .output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 10px;
+            border-bottom: 1px solid #ccc;
+        }
         #output, #debug-output {
             height: 300px;
             overflow-y: auto;
-            border: 1px solid #ccc;
-            margin: 10px 0;
             padding: 10px;
+        }
+        .copy-button {
+            padding: 4px 8px;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -33,10 +50,20 @@
         <button id="reset-button">Reset Stats</button>
     </div>
     <div class="output-container">
-        <div class="output-label">Command Output:</div>
-        <div id="output"></div>
-        <div class="output-label">Pattern Match Statistics:</div>
-        <div id="debug-output"></div>
+        <div class="output-box">
+            <div class="output-header">
+                <span class="output-label">Command Output:</span>
+                <button class="copy-button" onclick="copyToClipboard('output')">Copy to Clipboard</button>
+            </div>
+            <div id="output"></div>
+        </div>
+        <div class="output-box">
+            <div class="output-header">
+                <span class="output-label">Pattern Match Statistics:</span>
+                <button class="copy-button" onclick="copyToClipboard('debug-output')">Copy to Clipboard</button>
+            </div>
+            <div id="debug-output"></div>
+        </div>
     </div>
 
     <script>
@@ -46,6 +73,19 @@
         const resetButton = document.getElementById('reset-button');
         const output = document.getElementById('output');
         const debugOutput = document.getElementById('debug-output');
+
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                const button = element.previousElementSibling.querySelector('.copy-button');
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                }, 1000);
+            });
+        }
 
         // Set default command
         commandInput.value = 'echo a';
