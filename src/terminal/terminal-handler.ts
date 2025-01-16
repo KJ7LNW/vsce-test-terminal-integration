@@ -29,41 +29,34 @@ export class TerminalHandler {
         pattern: RegExp,
         prefix: string,
         suffix: string | null,
-        patternNumber: number,
-        isDebug = false
+        patternNumber: number
     ): { match: string | null; matchSource: number } {
         const regexResult = this.benchmarkRegex(output, pattern);
         const indexResult = this.benchmarkStringIndex(output, prefix, suffix);
         
-        if (isDebug) {
-            const startPos = output.indexOf(prefix);
-            const endPos = suffix ? output.indexOf(suffix, startPos) : -1;
-            this.onDebug(`Pattern ${patternNumber} sequence positions:
-                Start sequence at: ${startPos}
-                End sequence at: ${endPos}
-                Characters between: "${output.substring(startPos + prefix.length, endPos)}"`);
-            
-            this.onDebug(`Pattern ${patternNumber} match attempts:
-                Regex result: ${inspect(regexResult.match)}
-                Index result: ${inspect(indexResult.match)}
-                Full pattern: ${inspect(pattern)}
-                Full output: ${inspect(output)}`);
-        }
+        // Debug output only for mismatches
         
+        // Extract matches
         const regexMatch = regexResult.match?.[1];
         const indexMatch = indexResult.match;
         
-        if (regexMatch !== null && regexMatch !== undefined) {
-            if (indexMatch !== null && regexMatch !== indexMatch) {
+        // Record mismatch if either matched but they disagree
+        if ((regexMatch !== null && regexMatch !== undefined) || indexMatch !== null) {
+            if (regexMatch !== indexMatch) {
                 this.stats.matchMismatches.push(
                     `Pattern ${patternNumber} mismatch:\n` +
                     `  Regex: ${regexMatch}\n` +
                     `  Index: ${indexMatch}`
                 );
             }
+        }
+
+        // Return match only if both approaches agree
+        if (regexMatch !== null && regexMatch !== undefined && 
+            indexMatch !== null && regexMatch === indexMatch) {
             
             this.stats.regexTimes.push(regexResult.time);
-            this.stats.indexTimes.push(regexResult.time);
+            this.stats.indexTimes.push(indexResult.time);
             
             return { match: regexMatch, matchSource: patternNumber };
         }
@@ -238,8 +231,6 @@ export class TerminalHandler {
                     // Try patterns in sequence and short circuit on first match
                     let match = null;
                     let matchSource = 0;
-                    let regexResult2: { match: RegExpExecArray | null; time: number } = { match: null, time: 0 };
-                    let indexResult2: { match: string | null; time: number } = { match: null, time: 0 };
 
                     // Pattern 1: Command completed notification (VTE)
                     const result1 = this.tryPattern(
@@ -267,15 +258,10 @@ export class TerminalHandler {
                             // by index
                             '\x1b]633;C\x07',
                             '\x1b]633;D',
-                            2,
-                            true  // Enable debug output for Pattern 2
+                            2
                         );
                         match = result2.match;
                         matchSource = result2.matchSource;
-                        
-                        // Store results for debug output
-                        regexResult2 = this.benchmarkRegex(output, /\x1b\]633;C\x07(.*?)\x1b\]633;D/s);
-                        indexResult2 = this.benchmarkStringIndex(output, '\x1b]633;C\x07', '\x1b]633;D');
                     }
 
                     // Pattern 3: Fallback pattern
@@ -299,21 +285,10 @@ export class TerminalHandler {
                     this.stats.avgRegexTime = this.stats.regexTimes.reduce((a, b) => a + b, 0) / this.stats.regexTimes.length;
                     this.stats.avgIndexTime = this.stats.indexTimes.reduce((a, b) => a + b, 0) / this.stats.indexTimes.length;
 
-                    // Buffer the output with detailed matching info
-                    if (match !== null) {
-                        lastMatch = match;
-                        lastMatchSource = output;
-                        lastMatchPattern = matchSource;
-                        outputBuffer = `Match found (Pattern ${matchSource}):\n${inspect(match)}\n\nFrom:\n${inspect(output)}\n\n` +
-                            `Pattern 2 Details:\n` +
-                            `Regex match: ${inspect(regexResult2?.match?.[1])}\n` +
-                            `Index match: ${inspect(indexResult2?.match)}\n`;
-                    } else {
-                        outputBuffer = `No match found in:\n${inspect(output)}\n\n` +
-                            `Pattern 2 Details:\n` +
-                            `Regex match: ${inspect(regexResult2?.match?.[1])}\n` +
-                            `Index match: ${inspect(indexResult2?.match)}\n`;
-                    }
+                    // Buffer the output with match info
+                    outputBuffer = match !== null ?
+                        `Match found (Pattern ${matchSource}):\n${inspect(match)}\n\nFrom:\n${inspect(output)}` :
+                        `No match found in:\n${inspect(output)}`;
 
                     // Update stats
                     if (match !== null && typeof match === 'string') {
