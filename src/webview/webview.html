@@ -165,15 +165,17 @@
         function selectOption(inputId, value) {
             console.log('selectOption called with:', inputId, value);
             
-            // Send message first before any operations that might fail
-            console.log('Sending inputChanged message');
-            vscode.postMessage({
-                command: 'inputChanged'
-            });
-            
             try {
                 const input = document.getElementById(inputId);
                 console.log('Current input value:', input.textContent);
+                
+                // Only send inputChanged for prompt command changes
+                if (inputId === 'prompt-command-input' && value !== lastPromptCommand) {
+                    console.log('Sending inputChanged message for prompt command change');
+                    vscode.postMessage({
+                        command: 'inputChanged'
+                    });
+                }
                 
                 input.textContent = value;
                 console.log('Set new value:', value);
@@ -223,17 +225,15 @@
         let lastPromptCommand = promptCommandInput.textContent;
         let lastCommand = commandInput.textContent;
 
-        // Add input listeners for immediate terminal closure
+        // Track command changes without closing terminal
         commandInput.addEventListener('input', () => {
             const command = commandInput.textContent.trim();
             if (command !== lastCommand) {
                 lastCommand = command;
-                vscode.postMessage({
-                    command: 'inputChanged'
-                });
             }
         });
 
+        // Only close terminal when prompt command changes
         promptCommandInput.addEventListener('input', () => {
             const promptCommand = promptCommandInput.textContent.trim();
             if (promptCommand !== lastPromptCommand) {
@@ -250,17 +250,13 @@
             const useShellIntegration = document.getElementById('use-shell-integration').checked;
             const promptCommand = promptCommandInput.textContent.trim() || 'sleep 0.1';
             
-            // Force terminal restart if prompt command changed
-            const forceRestart = promptCommand !== lastPromptCommand;
-            lastPromptCommand = promptCommand;
-            
             output.textContent = '';
             debugOutput.textContent = '';
             vscode.postMessage({
                 command: 'runCommand',
                 text: command,
                 promptCommand: promptCommand,
-                autoCloseTerminal: autoClose || forceRestart,
+                autoCloseTerminal: autoClose,
                 useShellIntegration: useShellIntegration
             });
         });
