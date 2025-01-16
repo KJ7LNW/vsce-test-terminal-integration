@@ -242,10 +242,13 @@ export class TerminalHandler {
                     let indexResult2: { match: string | null; time: number } = { match: null, time: 0 };
 
                     // Pattern 1: Command completed notification (VTE)
-                    const pattern1 = /\x1b\]633;C\x07(.*?)\x1b\]777;notify;Command completed/s;
                     const result1 = this.tryPattern(
                         output,
-                        pattern1,
+                        
+                        // by regex
+                        /\x1b\]633;C\x07(.*?)\x1b\]777;notify;Command completed/s,
+
+                        // by index 
                         '\x1b]633;C\x07',
                         '\x1b]777;notify;Command completed',
                         1
@@ -255,10 +258,13 @@ export class TerminalHandler {
 
                     // Pattern 2: Basic command completion (VSCE)
                     if (match === null) {
-                        const pattern2 = /\x1b\]633;C\x07(.*?)\x1b\]633;D/s;
                         const result2 = this.tryPattern(
                             output,
-                            pattern2,
+                            
+                            // by regex
+                            /\x1b\]633;C\x07(.*?)\x1b\]633;D/s,
+
+                            // by index
                             '\x1b]633;C\x07',
                             '\x1b]633;D',
                             2,
@@ -268,16 +274,19 @@ export class TerminalHandler {
                         matchSource = result2.matchSource;
                         
                         // Store results for debug output
-                        regexResult2 = this.benchmarkRegex(output, pattern2);
+                        regexResult2 = this.benchmarkRegex(output, /\x1b\]633;C\x07(.*?)\x1b\]633;D/s);
                         indexResult2 = this.benchmarkStringIndex(output, '\x1b]633;C\x07', '\x1b]633;D');
                     }
 
                     // Pattern 3: Fallback pattern
                     if (match === null) {
-                        const pattern3 = /\x1b\]633;C\x07(.*)$/s;
                         const result3 = this.tryPattern(
                             output,
-                            pattern3,
+                            
+                            // by regex
+                            /\x1b\]633;C\x07(.*)$/s,
+
+                            // by index, match to end (ie, null)
                             '\x1b]633;C\x07',
                             null,
                             3
