@@ -55,14 +55,26 @@ The extension tracks three pattern types for command completion. A key test case
   3. The barrier releases before the terminal processes the output
   4. Result: command output is lost and "Fallback" pattern matches but `a` is not captured; counters are adjusted accordingly.
 
-The extension tracks these patterns:
+The extension attempts to match patterns in this order:
 
-1. VTE Pattern: Matches command completion with VTE notification
-    - VTE patterns are matched first because they are most reliable, but are separate from VSCode terminal integration
-    - You must disable VTE by exiting early from `/etc/profile.d/vte.*` if VTE extensions are installed
-    - If VTE is not disabled, VSCode pattern matching will not trigger 
-2. VSCode Pattern: Matches basic VSCode command completion escape sequences
-3. Fallback Pattern: Matches remaining command completion cases
+1. VTE Pattern: First priority when enabled (disabled by default)
+    - Only attempted if enabled and VTE is installed (e.g., as `/etc/profile.d/vte.*`)
+    - Matches `\x1b]633;C\x07<CONTENT>\x1b]777;notify;Command completed` sequence
+    - VTE patterns are tried first because they are more reliable, but are separate from VSCode terminal integration
+    - If no match is found, continues to VSCode pattern
+    - Can be enabled/disabled via the "Enable VTE pattern matching" checkbox
+    - When disabled (default), environment variable VTE_VERSION=0 is set to prevent VTE functionality
+      - This disables VTE even when it is installed in your system
+      - VSCode pattern matching is used instead
+    - When enabled and VTE is installed in your system:
+      - VTE pattern matching will be attempted
+2. VSCode Pattern: Second priority
+    - Matches `\x1b]633;C\x07<CONTENT>\x1b]633;D` sequence
+    - Attempted if VTE pattern is disabled or did not match
+    - If no match is found, continues to fallback pattern
+3. Fallback Pattern: Last resort
+   - Matches `\x1b]633;C\x07<CONTENT>` sequence to end of output; this handles the race condition when `\x1b]633;D` is lost, thus there is no terminating sequence in this match.
+   - Only attempted if both VTE and VSCode patterns did not match
    - When using `echo a` with PROMPT_COMMAND=`#`, this pattern matches
    - However, the command output (`a`) is lost because the barrier releases too early
    - The pattern matches the sequence but cannot capture the output

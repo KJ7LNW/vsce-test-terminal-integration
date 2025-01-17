@@ -79,6 +79,15 @@
             position: relative;
             width: 100%;
         }
+        code {
+            font-family: var(--vscode-editor-font-family, monospace);
+            background-color: var(--vscode-textCodeBlock-background);
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        #output, #debug-output {
+            font-family: var(--vscode-editor-font-family, monospace);
+        }
     </style>
 </head>
 <body>
@@ -120,6 +129,9 @@
         <br>
         <input type="checkbox" id="use-shell-integration" checked>
         <label for="use-shell-integration">Use shell integration for command execution</label>
+        <br>
+        <input type="checkbox" id="enable-vte-checks">
+        <label for="enable-vte-checks">Enable VTE pattern matching for <code>\x1b]777;</code> escapes (if installed in /etc/profile.d/vte.*)</label>
     </div>
     <div class="button-container">
         <button id="run-button">Run Command</button>
@@ -234,7 +246,7 @@
             }
         });
 
-        // Only close terminal when prompt command changes
+        // Close terminal when prompt command changes
         promptCommandInput.addEventListener('input', () => {
             const promptCommand = promptCommandInput.textContent.trim();
             if (promptCommand !== lastPromptCommand) {
@@ -244,11 +256,19 @@
                 });
             }
         });
+
+        // Close terminal when VTE checks setting changes
+        document.getElementById('enable-vte-checks').addEventListener('change', () => {
+            vscode.postMessage({
+                command: 'inputChanged'
+            });
+        });
         
         runButton.addEventListener('click', () => {
             const command = commandInput.textContent.trim() || 'echo a';
             const autoClose = document.getElementById('auto-close').checked;
             const useShellIntegration = document.getElementById('use-shell-integration').checked;
+            const enableVTEChecks = document.getElementById('enable-vte-checks').checked;
             const promptCommand = promptCommandInput.textContent.trim() || 'sleep 0.1';
             
             output.textContent = '';
@@ -258,7 +278,8 @@
                 text: command,
                 promptCommand: promptCommand,
                 autoCloseTerminal: autoClose,
-                useShellIntegration: useShellIntegration
+                useShellIntegration: useShellIntegration,
+                enableVTEChecks: enableVTEChecks
             });
         });
 

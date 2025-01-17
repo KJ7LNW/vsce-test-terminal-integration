@@ -21,6 +21,7 @@ export interface CommandOptions {
     autoCloseTerminal: boolean;
     useShellIntegration: boolean;
     promptCommand?: string;
+    enableVTEChecks?: boolean;
 }
 
 export class TerminalHandler {
@@ -207,6 +208,9 @@ export class TerminalHandler {
             if (promptCommand.trim()) {
                 env.PROMPT_COMMAND = promptCommand;
             }
+            if (!options.enableVTEChecks) {
+                env.VTE_VERSION = "0";
+            }
             this.terminal = vscode.window.createTerminal({
                 name: 'Command Runner',
                 env
@@ -241,18 +245,20 @@ export class TerminalHandler {
                     let matchSource = 0;
 
                     // Pattern 1: Command completed notification (VTE)
-                    const result1 = this.tryPattern(
-                        output,
-                        1,
-                        // by regex
-                        /\x1b\]633;C\x07(.*?)\x1b\]777;notify;Command completed/s,
+                    if (options.enableVTEChecks) {
+                        const result1 = this.tryPattern(
+                            output,
+                            1,
+                            // by regex
+                            /\x1b\]633;C\x07(.*?)\x1b\]777;notify;Command completed/s,
 
-                        // by index 
-                        '\x1b]633;C\x07',
-                        '\x1b]777;notify;Command completed'
-                    );
-                    match = result1.match;
-                    matchSource = result1.matchSource;
+                            // by index 
+                            '\x1b]633;C\x07',
+                            '\x1b]777;notify;Command completed'
+                        );
+                        match = result1.match;
+                        matchSource = result1.matchSource;
+                    }
 
                     // Pattern 2: Basic command completion (VSCE)
                     if (match === undefined) {
