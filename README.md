@@ -31,12 +31,33 @@ The extension provides a webview interface with:
   - `true` - no-op command after each command
   - `#` - comment, effectively disables PROMPT_COMMAND
 - Options for auto-closing terminals and shell integration
-- Known Issues:
-  - Using `echo a` with PROMPT_COMMAND set to `#` demonstrates the race condition:
-    - Command output is lost due to barrier releasing before output is processed
-    - This occurs because disabling PROMPT_COMMAND removes the timing delay that works around the race condition in VSCode's terminal integration
 - Real-time command output display
 - Pattern matching statistics
+
+### Known Issues with VSCode shell integration:
+Note: The following test cases demonstrate behaviors that are reliably reproducible on the author's system. Due to the timing-sensitive nature of these race conditions, actual behavior may vary slightly on different systems or under different load conditions.
+
+- **Race Condition Test Cases**
+     1. Testing with 'echo a' and varying PROMPT_COMMAND:
+         - Command: `echo a` with PROMPT_COMMAND=`true`
+            - Fails: output is lost
+            - Bash builtin executes too quickly
+        - Command: `echo a` with PROMPT_COMMAND=`/bin/true`
+          - Works: output is preserved
+          - Binary provides sufficient timing delay
+     2. Testing with 'echo a' and varying command path:
+        - Command: `echo a` with PROMPT_COMMAND=`#`
+          - Fails: output is lost
+        - Command: `/bin/echo a` with PROMPT_COMMAND=`#`
+          - Works: output is preserved
+          - Binary provides sufficient timing delay
+     3. Testing with empty string and varying command path:
+        - Command: `echo ""` with PROMPT_COMMAND=`#`
+          - Fails: CR/LF output is lost
+          - Bash builtin executes too quickly
+        - Command: `/bin/echo ""` with PROMPT_COMMAND=`#`
+          - Works: CR/LF is preserved
+          - Binary provides sufficient timing delay
 
 ### Running Tests
 

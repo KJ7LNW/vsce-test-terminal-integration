@@ -80,7 +80,7 @@ export class TerminalHandler {
 
     private terminal?: vscode.Terminal;
     private isExecuting = false;
-    private lastPromptCommand: string = 'sleep 0.1';
+    private lastPromptCommand: string = 'sleep 0.050';
     
     constructor(private readonly onOutput: (text: string) => void,
                 private readonly onDebug: (text: string) => void) {}
@@ -194,7 +194,7 @@ export class TerminalHandler {
         }
         this.isExecuting = true;
 
-        const promptCommand = (options.promptCommand || 'sleep 0.1').trim();
+        const promptCommand = (options.promptCommand || 'sleep 0.050').trim();
 
         // Handle prompt command changes first
         if (this.terminal && promptCommand !== this.lastPromptCommand) {

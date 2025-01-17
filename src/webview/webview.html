@@ -104,8 +104,10 @@
             <div id="command-input" class="editable-input" contenteditable="true" onfocus="showDropdown('command-dropdown')"></div>
             <div id="command-dropdown" class="dropdown">
                 <div class="dropdown-item" onclick="selectOption('command-input', 'echo a')">echo a</div>
+                <div class="dropdown-item" onclick="selectOption('command-input', '/bin/echo a')">/bin/echo a</div>
                 <div class="dropdown-item" onclick="selectOption('command-input', 'echo -n &quot;a&quot;')">echo -n "a"</div>
                 <div class="dropdown-item" onclick="selectOption('command-input', 'echo &quot;&quot;')">echo ""</div>
+                <div class="dropdown-item" onclick="selectOption('command-input', '/bin/echo &quot;&quot;')">/bin/echo ""</div>
                 <div class="dropdown-item" onclick="selectOption('command-input', 'echo -n &quot;&quot;')">echo -n ""</div>
                 <div class="dropdown-item" onclick="selectOption('command-input', '/bin/echo -n &quot;&quot;')">/bin/echo -n ""</div>
                 <div class="dropdown-item" onclick="selectOption('command-input', 'base64 < /dev/urandom| head -1')">base64 < /dev/urandom| head -1</div>
@@ -116,9 +118,11 @@
         <div class="input-wrapper">
             <div id="prompt-command-input" class="editable-input" contenteditable="true" onfocus="showDropdown('prompt-dropdown')"></div>
             <div id="prompt-dropdown" class="dropdown">
-                <div class="dropdown-item" onclick="selectOption('prompt-command-input', 'sleep 0.1')">sleep 0.1</div>
+                <div class="dropdown-item" onclick="selectOption('prompt-command-input', 'sleep 0.100')">sleep 0.100</div>
+                <div class="dropdown-item" onclick="selectOption('prompt-command-input', 'sleep 0.050')">sleep 0.050</div>
                 <div class="dropdown-item" onclick="selectOption('prompt-command-input', 'sleep 0')">sleep 0</div>
                 <div class="dropdown-item" onclick="selectOption('prompt-command-input', 'true')">true</div>
+                <div class="dropdown-item" onclick="selectOption('prompt-command-input', '/bin/true')">/bin/true</div>
                 <div class="dropdown-item" onclick="selectOption('prompt-command-input', '#')">#</div>
             </div>
         </div>
@@ -234,7 +238,7 @@
         // Set default values and track last values
         commandInput.textContent = 'echo a';
         const promptCommandInput = document.getElementById('prompt-command-input');
-        promptCommandInput.textContent = 'sleep 0.1';
+        promptCommandInput.textContent = 'sleep 0.050';
         let lastPromptCommand = promptCommandInput.textContent;
         let lastCommand = commandInput.textContent;
 
@@ -269,7 +273,7 @@
             const autoClose = document.getElementById('auto-close').checked;
             const useShellIntegration = document.getElementById('use-shell-integration').checked;
             const enableVTEChecks = document.getElementById('enable-vte-checks').checked;
-            const promptCommand = promptCommandInput.textContent.trim() || 'sleep 0.1';
+            const promptCommand = promptCommandInput.textContent.trim() || 'sleep 0.050';
             
             output.textContent = '';
             debugOutput.textContent = '';
