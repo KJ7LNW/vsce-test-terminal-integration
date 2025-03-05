@@ -276,7 +276,7 @@
         });
         
         runButton.addEventListener('click', () => {
-            const command = commandInput.textContent.trim() || 'echo a';
+            const command = commandInput.textContent || 'echo a';
             const autoClose = document.getElementById('auto-close').checked;
             const useShellIntegration = document.getElementById('use-shell-integration').checked;
             const enableVTEChecks = document.getElementById('enable-vte-checks').checked;
