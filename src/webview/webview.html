@@ -50,6 +50,13 @@
             min-height: 24px;
             cursor: text;
             position: relative;
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
+        }
+        #command-input {
+            min-height: 60px;
+            max-height: 200px;
+            overflow-y: auto;
         }
         .editable-input:focus {
             outline: 1px solid var(--vscode-focusBorder);
@@ -302,9 +309,9 @@
             }
         });
 
-        // Handle Enter key in input
-        commandInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
+        // Handle Enter key in command input
+        commandInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 runButton.click();
             }
