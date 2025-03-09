@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { inspect } from 'util';
 
-const BENCHMARK_ITERATIONS = 1000;
+const BENCHMARK_ITERATIONS = 1;
 
 export interface TerminalStats {
     patternCounts: number[];
