@@ -230,8 +230,10 @@ export class TerminalHandler {
                     let lastMatchPattern = 0;
 
                     let output = '';
+                    let chunkCount = 0;
                     for await (const data of stream) {
                         output += data;
+                        chunkCount++;
                     }
 
                     // Count total occurrences of \x1b\]633;D in complete output
@@ -319,6 +321,7 @@ export class TerminalHandler {
                         (this.stats.matchMismatches.length > 0 ?
                             'Match Validation Issues:\n' +
                             this.stats.matchMismatches.map(msg => `  ${msg}`).join('\n') + '\n\n' : '') +
+                        `    Chunks processed:       ${chunkCount}\n` +
                         `    Pattern 1 (VTE):        ${this.stats.patternCounts[0]}\n` +
                         `    Pattern 2 (VSCE):       ${this.stats.patternCounts[1]}\n` +
                         `    Pattern 3 (Fallback):   ${this.stats.patternCounts[2]}\n` +
