@@ -385,7 +385,7 @@ export class TerminalHandler {
                     this.stats.shellIntegrationWarnings++;
                     this.terminal?.sendText(command);
                 } else {
-                    this.terminal?.sendText("\x03");
+                    // this.terminal?.sendText("\x03");
                     await new Promise(resolve => setTimeout(resolve, 5000));
                     shellIntegration.executeCommand(command);
                 }
