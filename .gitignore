@@ -3,4 +3,3 @@ out/
 *.vsix
 .vscode/
 package-lock.json
-resources/

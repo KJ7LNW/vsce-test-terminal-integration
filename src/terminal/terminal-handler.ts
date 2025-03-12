@@ -220,6 +220,7 @@ export class TerminalHandler {
         this.terminal.show();
 
         const startDisposable = (vscode.window as any).onDidStartTerminalShellExecution?.(async (e: any) => {
+            console.log("onDidStartTerminalShellExecution triggered", e)
             try {
                 const stream = e.execution.read();
                 
@@ -363,6 +364,7 @@ export class TerminalHandler {
         });
 
         const endDisposable = (vscode.window as any).onDidEndTerminalShellExecution?.(async (e: any) => {
+            console.log("onDidEndTerminalShellExecution triggered", e)
             if (e.terminal === this.terminal) {
                 startDisposable?.dispose();
                 endDisposable?.dispose();
@@ -383,9 +385,12 @@ export class TerminalHandler {
                     this.stats.shellIntegrationWarnings++;
                     this.terminal?.sendText(command);
                 } else {
+                    this.terminal?.sendText("\x03");
+                    await new Promise(resolve => setTimeout(resolve, 5000));
                     shellIntegration.executeCommand(command);
                 }
             } else {
+                console.log('no shell int')
                 this.terminal?.sendText(command);
             }
         } catch (err) {
