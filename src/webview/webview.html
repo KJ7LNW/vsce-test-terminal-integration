@@ -125,6 +125,7 @@
         <div class="input-wrapper">
             <div id="prompt-command-input" class="editable-input" contenteditable="true" onfocus="showDropdown('prompt-dropdown')"></div>
             <div id="prompt-dropdown" class="dropdown">
+                <div class="dropdown-item" onclick="selectOption('prompt-command-input', '')">[do not define]</div>
                 <div class="dropdown-item" onclick="selectOption('prompt-command-input', 'sleep 0.100')">sleep 0.100</div>
                 <div class="dropdown-item" onclick="selectOption('prompt-command-input', 'sleep 0.050')">sleep 0.050</div>
                 <div class="dropdown-item" onclick="selectOption('prompt-command-input', 'sleep 0')">sleep 0</div>
@@ -245,7 +246,7 @@
         // Set default values and track last values
         commandInput.textContent = 'echo a';
         const promptCommandInput = document.getElementById('prompt-command-input');
-        promptCommandInput.textContent = 'sleep 0.050';
+        promptCommandInput.textContent = '';
         let lastPromptCommand = promptCommandInput.textContent;
         let lastCommand = commandInput.textContent;
 
@@ -280,7 +281,7 @@
             const autoClose = document.getElementById('auto-close').checked;
             const useShellIntegration = document.getElementById('use-shell-integration').checked;
             const enableVTEChecks = document.getElementById('enable-vte-checks').checked;
-            const promptCommand = promptCommandInput.textContent.trim() || 'sleep 0.050';
+            const promptCommand = promptCommandInput.textContent.trim() || '';
             
             output.textContent = '';
             debugOutput.textContent = '';
