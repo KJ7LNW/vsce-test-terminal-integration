@@ -106,6 +106,15 @@ export class TerminalHandler {
             avgIndexTime: 0,
             matchMismatches: []
         };
+        
+        // Clear execution wait state and dispose of terminal
+        this.isExecuting = false;
+        
+        // Dispose of the terminal to ensure a completely fresh state
+        if (this.terminal) {
+            this.terminal.dispose();
+            this.terminal = undefined;
+        }
     }
 
     private benchmarkRegex(data: string, pattern: RegExp): { match: RegExpExecArray | undefined; time: number } {
